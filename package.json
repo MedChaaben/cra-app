@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:clear": "tsx scripts/seed-clear-all.ts",
+    "seed:demo": "tsx scripts/seed-demo-email.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -45,6 +47,8 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "dotenv": "^16.6.1",
+    "tsx": "^4.21.0",
     "@eslint/js": "^9.39.4",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^24.12.2",
