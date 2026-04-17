@@ -13,7 +13,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { downloadTimesheetCsv } from '@/lib/csv'
+import { getFrenchMetropolitanHolidayLabel } from '@/lib/frenchPublicHolidays'
+import { getDayRowKind } from '@/lib/manualMonthRows'
 import { supabase } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import type { TimesheetEntry } from '@/types/models'
 
 type Row = TimesheetEntry
@@ -192,7 +195,7 @@ export default function TimesheetEditorPage() {
                   <th className="pb-2 pr-2 font-medium">Date</th>
                   <th className="pb-2 pr-2 font-medium">Mission</th>
                   <th className="pb-2 pr-2 font-medium">Client</th>
-                  <th className="pb-2 pr-2 font-medium">Heures</th>
+                  <th className="pb-2 pr-2 font-medium">{t('editor.colDays')}</th>
                   <th className="pb-2 pr-2 font-medium">TJM</th>
                   <th className="pb-2 pr-2 font-medium">Conf.</th>
                   <th className="pb-2 pr-2 font-medium">Commentaire</th>
@@ -200,15 +203,37 @@ export default function TimesheetEditorPage() {
                 </tr>
               </thead>
               <tbody className="align-middle">
-                {rows.map((row, i) => (
-                  <tr key={row.id} className="border-b border-border/60">
+                {rows.map((row, i) => {
+                  const kind = row.work_date ? getDayRowKind(row.work_date) : null
+                  const holidayLabel = row.work_date ? getFrenchMetropolitanHolidayLabel(row.work_date) : null
+                  return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-b border-border/60',
+                      kind === 'holiday' && 'bg-amber-500/[0.07]',
+                      kind === 'weekend' && 'bg-muted/35',
+                    )}
+                  >
                     <td className="py-2 pr-2">
-                      <Input
-                        type="date"
-                        value={row.work_date ?? ''}
-                        onChange={(e) => updateRow(i, { work_date: e.target.value || null })}
-                        className="h-9 min-w-[9rem]"
-                      />
+                      <div className="flex min-w-[9rem] flex-col gap-1">
+                        <Input
+                          type="date"
+                          value={row.work_date ?? ''}
+                          onChange={(e) => updateRow(i, { work_date: e.target.value || null })}
+                          className="h-9 w-full min-w-0"
+                        />
+                        {kind === 'holiday' ? (
+                          <Badge variant="outline" className="w-fit border-amber-500/40 text-[10px] font-normal">
+                            {t('editor.badgeHoliday')}
+                            {holidayLabel ? ` · ${holidayLabel}` : ''}
+                          </Badge>
+                        ) : kind === 'weekend' ? (
+                          <Badge variant="secondary" className="w-fit text-[10px] font-normal">
+                            {t('editor.badgeWeekend')}
+                          </Badge>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="py-2 pr-2">
                       <Input
@@ -258,7 +283,8 @@ export default function TimesheetEditorPage() {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </ScrollArea>
