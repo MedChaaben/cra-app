@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileText, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +37,11 @@ import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
-import { normalizeInvoicePdfPath, rebuildInvoicePdfPath } from '@/services/invoices/invoicePdfStorage'
+import {
+  normalizeInvoicePdfPath,
+  openInvoicePdfPreviewInBrowser,
+  rebuildInvoicePdfPath,
+} from '@/services/invoices/invoicePdfStorage'
 import type { BillingUnit, Client, Invoice, InvoiceItem, InvoiceStatus, Profile, Settings } from '@/types/models'
 
 const INVOICE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'] as const
@@ -108,6 +112,7 @@ export default function InvoiceEditPage() {
   const [numberDialogOpen, setNumberDialogOpen] = useState(false)
   const [pendingNumber, setPendingNumber] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [previewPdfBusy, setPreviewPdfBusy] = useState(false)
 
   const invoiceQuery = useQuery({
     queryKey: ['invoice', id],
@@ -408,7 +413,74 @@ export default function InvoiceEditPage() {
     onError: () => toast.error(t('invoices.detail.deleteError')),
   })
 
-  const busy = form.formState.isSubmitting || saveInvoice.isPending
+  const busy = form.formState.isSubmitting || saveInvoice.isPending || previewPdfBusy
+
+  const handlePreviewPdf = async () => {
+    const row = invoiceQuery.data
+    const valid = await form.trigger()
+    if (!valid || !user?.id || !id || !row || !profile.data || !settings.data) {
+      toast.error(t('invoices.invoiceForm.previewPdfError'))
+      return
+    }
+    const values = form.getValues()
+    const client = clients.data?.find((c) => c.id === values.clientId)
+    if (!client) {
+      toast.error(t('invoices.invoiceForm.previewPdfError'))
+      return
+    }
+    setPreviewPdfBusy(true)
+    try {
+      const draftItems = values.lines.map((l, i) => {
+        const total_ht = Math.round(l.quantity * l.unitPrice * 100) / 100
+        return {
+          id: `preview-${i}`,
+          invoice_id: id,
+          created_at: new Date().toISOString(),
+          description: l.description.trim(),
+          quantity: l.quantity,
+          unit_price: l.unitPrice,
+          total_ht,
+          billing_unit: l.billingUnit as BillingUnit,
+          timesheet_entry_id: l.timesheet_entry_id ?? null,
+        }
+      })
+      const subtotal_ht = draftItems.reduce((a, i) => a + i.total_ht, 0)
+      const vat_amount = (subtotal_ht * values.vatRate) / 100
+      const total_ttc = subtotal_ht + vat_amount
+      const previewInvoice: Invoice = {
+        ...row,
+        client_id: values.clientId,
+        issue_date: values.issueDate,
+        due_date: values.dueDate || null,
+        currency: values.currency,
+        pdf_locale: values.pdfLocale,
+        pdf_template: values.pdfTemplate,
+        vat_rate: values.vatRate,
+        notes: values.notes || null,
+        status: values.status,
+        subtotal_ht,
+        vat_amount,
+        total_ttc,
+      }
+      const logoBytes = await fetchCompanyLogoBytes(supabase, user.id, profile.data.logo_path)
+      await openInvoicePdfPreviewInBrowser(
+        {
+          profile: profile.data,
+          client,
+          invoice: previewInvoice,
+          items: draftItems as InvoiceItem[],
+          settings: settings.data,
+          logoBytes,
+        },
+        row.invoice_number,
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error(msg || t('invoices.invoiceForm.previewPdfError'))
+    } finally {
+      setPreviewPdfBusy(false)
+    }
+  }
 
   const openNumberDialog = () => {
     const row = invoiceQuery.data
@@ -686,10 +758,23 @@ export default function InvoiceEditPage() {
                 <span className="tabular-nums">{new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(totalTtc)}</span>
               </div>
             </div>
-            <Button type="submit" size="lg" disabled={busy || saveInvoice.isPending} className="sm:min-w-[10rem]">
-              {saveInvoice.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {t('invoices.detail.save')}
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={busy || saveInvoice.isPending}
+                className="gap-2 sm:min-w-[10rem]"
+                onClick={() => void handlePreviewPdf()}
+              >
+                {previewPdfBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <FileText className="h-4 w-4 shrink-0" />}
+                {t('invoices.invoiceForm.previewPdf')}
+              </Button>
+              <Button type="submit" size="lg" disabled={busy || saveInvoice.isPending} className="gap-2 sm:min-w-[10rem]">
+                {saveInvoice.isPending ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : null}
+                {t('invoices.detail.save')}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </form>

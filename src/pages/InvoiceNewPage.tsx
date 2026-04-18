@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { FileText, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -32,11 +32,14 @@ import {
 import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { formatInvoiceNumberFromSettings } from '@/lib/invoiceNumber'
+import { openInvoicePdfPreviewInBrowser } from '@/services/invoices/invoicePdfStorage'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
 import type { Client, Invoice, InvoiceItem, Profile, Settings, Timesheet, TimesheetEntry } from '@/types/models'
 
 const INVOICE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'] as const
+
+const PREVIEW_INVOICE_PLACEHOLDER_ID = '00000000-0000-0000-0000-000000000000'
 
 function createInvoiceFormSchema(t: (k: string) => string) {
   const lineSchema = z.object({
@@ -87,6 +90,7 @@ export default function InvoiceNewPage() {
   const qc = useQueryClient()
   const craImportDone = useRef(false)
   const pdfDefaultsSynced = useRef(false)
+  const [previewPdfBusy, setPreviewPdfBusy] = useState(false)
 
   const formSchema = useMemo(() => createInvoiceFormSchema(t), [t])
 
@@ -212,7 +216,80 @@ export default function InvoiceNewPage() {
     toast.success(t('invoices.invoiceForm.craImported'))
   }, [entries.data, timesheet.data, replace, t])
 
-  const busy = form.formState.isSubmitting
+  const busy = form.formState.isSubmitting || previewPdfBusy
+
+  const handlePreviewPdf = async () => {
+    const valid = await form.trigger()
+    if (!valid || !user || !profile.data || !settings.data) {
+      toast.error(t('invoices.invoiceForm.previewPdfError'))
+      return
+    }
+    const values = form.getValues()
+    const client = clients.data?.find((c) => c.id === values.clientId)
+    if (!client) {
+      toast.error(t('invoices.invoiceForm.previewPdfError'))
+      return
+    }
+    setPreviewPdfBusy(true)
+    try {
+      const draftItems = values.lines.map((l, i) => {
+        const total_ht = Math.round(l.quantity * l.unitPrice * 100) / 100
+        return {
+          id: `preview-${i}`,
+          invoice_id: PREVIEW_INVOICE_PLACEHOLDER_ID,
+          created_at: new Date().toISOString(),
+          description: l.description.trim(),
+          quantity: l.quantity,
+          unit_price: l.unitPrice,
+          total_ht,
+          billing_unit: l.billingUnit,
+          timesheet_entry_id: null as string | null,
+        }
+      })
+      const subtotal_ht = draftItems.reduce((a, i) => a + i.total_ht, 0)
+      const vat_amount = (subtotal_ht * values.vatRate) / 100
+      const total_ttc = subtotal_ht + vat_amount
+      const invoiceNumber = formatInvoiceNumberFromSettings(settings.data as Settings)
+      const now = new Date().toISOString()
+      const previewInvoice: Invoice = {
+        id: PREVIEW_INVOICE_PLACEHOLDER_ID,
+        user_id: user.id,
+        client_id: client.id,
+        created_at: now,
+        updated_at: now,
+        invoice_number: invoiceNumber,
+        issue_date: now.slice(0, 10),
+        due_date: values.dueDate || null,
+        currency: values.currency,
+        vat_rate: values.vatRate,
+        notes: values.notes || null,
+        status: 'pending',
+        pdf_path: null,
+        subtotal_ht,
+        vat_amount,
+        total_ttc,
+        pdf_locale: values.pdfLocale,
+        pdf_template: values.pdfTemplate,
+      }
+      const logoBytes = await fetchCompanyLogoBytes(supabase, user.id, profile.data.logo_path)
+      await openInvoicePdfPreviewInBrowser(
+        {
+          profile: profile.data,
+          client,
+          invoice: previewInvoice,
+          items: draftItems as InvoiceItem[],
+          settings: settings.data as Settings,
+          logoBytes,
+        },
+        invoiceNumber,
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error(msg || t('invoices.invoiceForm.previewPdfError'))
+    } finally {
+      setPreviewPdfBusy(false)
+    }
+  }
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (!user || !profile.data || !settings.data) {
@@ -622,10 +699,23 @@ export default function InvoiceNewPage() {
                   {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(totalTtc)}
                 </span>
               </div>
-              <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {t('invoices.invoiceForm.generate')}
-              </Button>
+              <div className="mt-4 flex w-full flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  size="lg"
+                  disabled={busy}
+                  onClick={() => void handlePreviewPdf()}
+                >
+                  {previewPdfBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <FileText className="h-4 w-4 shrink-0" />}
+                  {t('invoices.invoiceForm.previewPdf')}
+                </Button>
+                <Button type="submit" className="w-full gap-2" size="lg" disabled={busy}>
+                  {busy && !previewPdfBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : null}
+                  {t('invoices.invoiceForm.generate')}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
