@@ -324,6 +324,7 @@ export default function InvoiceNewPage() {
     toast.success('Facture créée')
     await qc.invalidateQueries({ queryKey: ['invoices'] })
     await qc.invalidateQueries({ queryKey: ['invoices-all'] })
+    await qc.invalidateQueries({ queryKey: ['dashboard-stats', user.id] })
     void navigate('/invoices')
   })
 

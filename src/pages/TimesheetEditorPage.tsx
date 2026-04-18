@@ -97,13 +97,14 @@ export default function TimesheetEditorPage() {
           await supabase.from('timesheets').update({ status: 'parsed' }).eq('id', id)
           await qc.invalidateQueries({ queryKey: ['timesheet-entries', id] })
           await qc.invalidateQueries({ queryKey: ['timesheets'] })
+          if (user?.id) await qc.invalidateQueries({ queryKey: ['dashboard-stats', user.id] })
         } catch {
           toast.error('Autosave impossible')
         }
       })()
     }, 900)
     return () => window.clearTimeout(t)
-  }, [rows, id, qc])
+  }, [rows, id, qc, user?.id])
 
   const updateRow = (index: number, patch: Partial<Row>) => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))

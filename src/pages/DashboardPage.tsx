@@ -1,4 +1,5 @@
-import { FileSpreadsheet, Plus, Receipt } from 'lucide-react'
+import { FileSpreadsheet, Plus, Receipt, TrendingUp } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
@@ -15,10 +16,23 @@ import { useQuery } from '@tanstack/react-query'
 import type { Invoice } from '@/types/models'
 
 export default function DashboardPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const stats = useDashboardStats(user?.id)
   const timesheets = useTimesheets(user?.id)
+
+  const fmt = useMemo(() => {
+    const loc = i18n.language === 'en' ? 'en-US' : 'fr-FR'
+    return {
+      moneyHt: (n: number) =>
+        new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n),
+      moneyHtPrecise: (n: number) =>
+        new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n),
+      moneyTtc: (n: number) =>
+        new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n),
+      days: (n: number) => n.toLocaleString(loc, { maximumFractionDigits: 2 }),
+    }
+  }, [i18n.language])
 
   const invoices = useQuery({
     queryKey: ['invoices', user?.id],
@@ -34,12 +48,14 @@ export default function DashboardPage() {
     },
   })
 
+  const d = stats.data
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
-          <p className="mt-2 max-w-xl text-muted-foreground">{t('dashboard.subtitle')}</p>
+          <p className="mt-2 max-w-2xl text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
         <Button asChild className="shrink-0 shadow-md shadow-primary/20">
           <Link to="/import">
@@ -49,33 +65,125 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          label={t('dashboard.hoursMonth')}
-          value={stats.data ? `${stats.data.hoursMonth.toFixed(1)} h` : undefined}
-          loading={stats.isLoading}
-        />
-        <MetricCard
-          label={t('dashboard.revenueMonth')}
-          value={
-            stats.data
-              ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR' }).format(
-                  stats.data.revenueMonthHt
-                )
-              : undefined
-          }
-          loading={stats.isLoading}
-        />
-        <MetricCard
-          label={t('dashboard.timesheets')}
-          value={stats.data ? String(stats.data.timesheetCount) : undefined}
-          loading={stats.isLoading}
-        />
-        <MetricCard
-          label={t('dashboard.invoices')}
-          value={stats.data ? String(stats.data.invoiceCount) : undefined}
-          loading={stats.isLoading}
-        />
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('dashboard.sectionActivity')}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label={t('dashboard.revenueMonth')}
+            value={d ? fmt.moneyHt(d.revenueMonthHt) : undefined}
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.revenueYear')}
+            value={d ? fmt.moneyHt(d.revenueYearHt) : undefined}
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.soldDays')}
+            value={d ? fmt.days(d.soldDaysYear) : undefined}
+            sub={
+              d
+                ? t('dashboard.soldDaysSub', {
+                    month: fmt.days(d.soldDaysMonth),
+                    year: fmt.days(d.soldDaysYear),
+                  })
+                : undefined
+            }
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.avgTjm')}
+            hint={t('dashboard.avgTjmHint')}
+            value={d ? fmt.moneyHtPrecise(d.avgDailyRateYtd) : undefined}
+            loading={stats.isLoading}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('dashboard.sectionBilling')}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label={t('dashboard.avgMonthlyRevenue')}
+            hint={t('dashboard.avgMonthlyRevenueHint')}
+            value={d ? fmt.moneyHt(d.avgMonthlyRevenueYtdHt) : undefined}
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.yearProjection')}
+            hint={t('dashboard.yearProjectionHint')}
+            value={d ? fmt.moneyHt(d.yearEndProjectionHt) : undefined}
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.latePayments')}
+            value={
+              d
+                ? d.latePaymentCount > 0
+                  ? t('dashboard.latePaymentsSub', {
+                      count: d.latePaymentCount,
+                      amount: fmt.moneyTtc(d.latePaymentAmountTtc),
+                    })
+                  : t('dashboard.latePaymentsNone')
+                : undefined
+            }
+            hint={d && d.latePaymentCount > 0 ? t('dashboard.latePaymentsMixedCurrency') : undefined}
+            loading={stats.isLoading}
+            multilineValue
+          />
+          <MetricCard
+            label={t('dashboard.gapToInvoice')}
+            hint={t('dashboard.gapToInvoiceHint')}
+            value={d ? fmt.moneyHt(d.gapToInvoiceHt) : undefined}
+            loading={stats.isLoading}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('dashboard.sectionSummary')}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <MetricCard
+            label={t('dashboard.timesheets')}
+            value={d ? String(d.timesheetCount) : undefined}
+            loading={stats.isLoading}
+          />
+          <MetricCard
+            label={t('dashboard.invoices')}
+            value={d ? String(d.invoiceCount) : undefined}
+            loading={stats.isLoading}
+          />
+          <Card className="border-primary/25 bg-gradient-to-br from-primary/5 to-card sm:col-span-2 lg:col-span-1">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <CardDescription>{t('dashboard.topClient')}</CardDescription>
+              </div>
+              <CardTitle className="text-xl font-semibold leading-tight">
+                {stats.isLoading ? (
+                  <Skeleton className="h-7 w-40" />
+                ) : d && d.topClientRevenueHt > 0 ? (
+                  <>
+                    <span className="block truncate">
+                      {d.topClientUnassigned ? t('dashboard.topClientUnassigned') : (d.topClientName ?? '—')}
+                    </span>
+                    <span className="mt-1 block text-base font-medium tabular-nums text-primary">
+                      {fmt.moneyHt(d.topClientRevenueHt)} HT
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-base font-normal text-muted-foreground">{t('dashboard.topClientNone')}</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -99,9 +207,7 @@ export default function DashboardPage() {
                 >
                   <div>
                     <p className="font-medium">{ts.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(ts.created_at).toLocaleDateString()}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{new Date(ts.created_at).toLocaleDateString()}</p>
                   </div>
                   <Badge variant={ts.status === 'validated' ? 'success' : 'secondary'}>{ts.status}</Badge>
                 </Link>
@@ -136,9 +242,10 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground">{inv.issue_date}</p>
                   </div>
                   <span className="font-medium tabular-nums">
-                    {new Intl.NumberFormat(undefined, { style: 'currency', currency: inv.currency }).format(
-                      inv.total_ttc
-                    )}
+                    {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
+                      style: 'currency',
+                      currency: inv.currency,
+                    }).format(inv.total_ttc)}
                   </span>
                 </div>
               ))
@@ -160,19 +267,32 @@ export default function DashboardPage() {
 function MetricCard({
   label,
   value,
+  sub,
+  hint,
   loading,
+  multilineValue,
 }: {
   label: string
   value: string | undefined
+  sub?: string
+  hint?: string
   loading: boolean
+  multilineValue?: boolean
 }) {
   return (
     <Card className={cn('border-border/80 bg-gradient-to-br from-card to-muted/30')}>
-      <CardHeader className="pb-2">
+      <CardHeader className="space-y-1 pb-2">
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums">
-          {loading ? <Skeleton className="h-8 w-24" /> : (value ?? '—')}
+        {hint ? <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p> : null}
+        <CardTitle
+          className={cn(
+            'text-xl font-semibold tabular-nums sm:text-2xl',
+            multilineValue && value && 'whitespace-pre-wrap text-base font-medium leading-snug sm:text-lg',
+          )}
+        >
+          {loading ? <Skeleton className="h-8 w-28" /> : (value ?? '—')}
         </CardTitle>
+        {sub && !loading ? <CardDescription className="pt-0.5 text-xs">{sub}</CardDescription> : null}
       </CardHeader>
     </Card>
   )
