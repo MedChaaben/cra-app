@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, FileText, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { InvoicePdfLivePreviewPanel } from '@/components/invoices/InvoicePdfLivePreviewPanel'
+import { buildLivePreviewInputEdit } from '@/components/invoices/invoicePdfLivePreviewModel'
 import { InvoiceTemplatePicker } from '@/components/invoices/InvoiceTemplatePicker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,16 +34,13 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
+import { useDebounced } from '@/hooks/useDebounced'
 import { BILLING_UNITS } from '@/lib/invoiceCraAggregate'
 import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
-import {
-  normalizeInvoicePdfPath,
-  openInvoicePdfPreviewInBrowser,
-  rebuildInvoicePdfPath,
-} from '@/services/invoices/invoicePdfStorage'
+import { normalizeInvoicePdfPath, rebuildInvoicePdfPath } from '@/services/invoices/invoicePdfStorage'
 import type { BillingUnit, Client, Invoice, InvoiceItem, InvoiceStatus, Profile, Settings } from '@/types/models'
 
 const INVOICE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'] as const
@@ -112,7 +111,6 @@ export default function InvoiceEditPage() {
   const [numberDialogOpen, setNumberDialogOpen] = useState(false)
   const [pendingNumber, setPendingNumber] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [previewPdfBusy, setPreviewPdfBusy] = useState(false)
 
   const invoiceQuery = useQuery({
     queryKey: ['invoice', id],
@@ -181,6 +179,8 @@ export default function InvoiceEditPage() {
   })
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' })
+  const watchedForm = useWatch({ control: form.control })
+  const debouncedForm = useDebounced(watchedForm, 420)
   const watchedLines = useWatch({ control: form.control, name: 'lines' })
   const watchedVat = useWatch({ control: form.control, name: 'vatRate' }) ?? 20
   const watchedCurrency = useWatch({ control: form.control, name: 'currency' }) ?? 'EUR'
@@ -413,74 +413,20 @@ export default function InvoiceEditPage() {
     onError: () => toast.error(t('invoices.detail.deleteError')),
   })
 
-  const busy = form.formState.isSubmitting || saveInvoice.isPending || previewPdfBusy
-
-  const handlePreviewPdf = async () => {
+  const livePreviewInput = useMemo(() => {
     const row = invoiceQuery.data
-    const valid = await form.trigger()
-    if (!valid || !user?.id || !id || !row || !profile.data || !settings.data) {
-      toast.error(t('invoices.invoiceForm.previewPdfError'))
-      return
-    }
-    const values = form.getValues()
-    const client = clients.data?.find((c) => c.id === values.clientId)
-    if (!client) {
-      toast.error(t('invoices.invoiceForm.previewPdfError'))
-      return
-    }
-    setPreviewPdfBusy(true)
-    try {
-      const draftItems = values.lines.map((l, i) => {
-        const total_ht = Math.round(l.quantity * l.unitPrice * 100) / 100
-        return {
-          id: `preview-${i}`,
-          invoice_id: id,
-          created_at: new Date().toISOString(),
-          description: l.description.trim(),
-          quantity: l.quantity,
-          unit_price: l.unitPrice,
-          total_ht,
-          billing_unit: l.billingUnit as BillingUnit,
-          timesheet_entry_id: l.timesheet_entry_id ?? null,
-        }
-      })
-      const subtotal_ht = draftItems.reduce((a, i) => a + i.total_ht, 0)
-      const vat_amount = (subtotal_ht * values.vatRate) / 100
-      const total_ttc = subtotal_ht + vat_amount
-      const previewInvoice: Invoice = {
-        ...row,
-        client_id: values.clientId,
-        issue_date: values.issueDate,
-        due_date: values.dueDate || null,
-        currency: values.currency,
-        pdf_locale: values.pdfLocale,
-        pdf_template: values.pdfTemplate,
-        vat_rate: values.vatRate,
-        notes: values.notes || null,
-        status: values.status,
-        subtotal_ht,
-        vat_amount,
-        total_ttc,
-      }
-      const logoBytes = await fetchCompanyLogoBytes(supabase, user.id, profile.data.logo_path)
-      await openInvoicePdfPreviewInBrowser(
-        {
-          profile: profile.data,
-          client,
-          invoice: previewInvoice,
-          items: draftItems as InvoiceItem[],
-          settings: settings.data,
-          logoBytes,
-        },
-        row.invoice_number,
-      )
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      toast.error(msg || t('invoices.invoiceForm.previewPdfError'))
-    } finally {
-      setPreviewPdfBusy(false)
-    }
-  }
+    if (!user?.id || !id || !row || !profile.data || !settings.data || !debouncedForm) return null
+    return buildLivePreviewInputEdit(
+      debouncedForm as FormValues,
+      row,
+      id,
+      clients.data ?? [],
+      profile.data,
+      settings.data,
+    )
+  }, [user?.id, id, invoiceQuery.data, profile.data, settings.data, clients.data, debouncedForm])
+
+  const busy = form.formState.isSubmitting || saveInvoice.isPending
 
   const openNumberDialog = () => {
     const row = invoiceQuery.data
@@ -512,7 +458,7 @@ export default function InvoiceEditPage() {
   const inv = invoiceQuery.data as Invoice
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-16">
+    <div className="mx-auto w-full max-w-[1580px] space-y-8 px-4 pb-20 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-8 px-2">
@@ -535,7 +481,9 @@ export default function InvoiceEditPage() {
         </div>
       </div>
 
-      <form className="space-y-8" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
+      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,38vw)] lg:items-stretch lg:gap-8 xl:grid-cols-[minmax(0,640px)_min(420px,440px)]">
+        <div className="min-w-0 space-y-8 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
+          <form className="space-y-8" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
         <Card className="border-border/80">
           <CardHeader>
             <CardTitle className="text-lg">{t('invoices.detail.metaSection')}</CardTitle>
@@ -758,26 +706,19 @@ export default function InvoiceEditPage() {
                 <span className="tabular-nums">{new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(totalTtc)}</span>
               </div>
             </div>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                disabled={busy || saveInvoice.isPending}
-                className="gap-2 sm:min-w-[10rem]"
-                onClick={() => void handlePreviewPdf()}
-              >
-                {previewPdfBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <FileText className="h-4 w-4 shrink-0" />}
-                {t('invoices.invoiceForm.previewPdf')}
-              </Button>
-              <Button type="submit" size="lg" disabled={busy || saveInvoice.isPending} className="gap-2 sm:min-w-[10rem]">
-                {saveInvoice.isPending ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : null}
-                {t('invoices.detail.save')}
-              </Button>
-            </div>
+            <Button type="submit" size="lg" disabled={busy || saveInvoice.isPending} className="w-full shrink-0 gap-2 sm:w-auto sm:min-w-[10rem]">
+              {saveInvoice.isPending ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : null}
+              {t('invoices.detail.save')}
+            </Button>
           </CardContent>
         </Card>
       </form>
+        </div>
+
+        <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
+          <InvoicePdfLivePreviewPanel input={livePreviewInput} downloadBaseName={inv.invoice_number} />
+        </aside>
+      </div>
 
       <Dialog open={numberDialogOpen} onOpenChange={setNumberDialogOpen}>
         <DialogContent>

@@ -263,7 +263,8 @@ const resources = {
         },
         detail: {
           back: 'Retour aux factures',
-          subtitle: 'Statut, montants, lignes et numéro — le PDF est régénéré après enregistrement.',
+          subtitle:
+            'Statut, montants, lignes et numéro — l’aperçu du PDF à droite se met à jour pendant la saisie ; le fichier enregistré est régénéré à l’enregistrement.',
           metaSection: 'Informations générales',
           metaHint: 'Client, statut, dates et document PDF.',
           status: 'Statut',
@@ -310,7 +311,7 @@ const resources = {
         },
         invoiceForm: {
           subtitle:
-            'Composez vos postes comme sur un outil pro : libellé, quantité, unité (jour, mois, heure, forfait) et prix unitaire. Le PDF reprend exactement ce que vous validez.',
+            'Composez vos postes comme sur un outil pro : libellé, quantité, unité (jour, mois, heure, forfait) et prix unitaire. Sur grand écran, l’aperçu du PDF à droite se met à jour pendant la saisie.',
           clientSection: 'Client facturé',
           clientHint: 'Coordonnées utilisées sur le PDF (adresse client).',
           client: 'Client',
@@ -352,8 +353,12 @@ const resources = {
           vatPreview: 'TVA ({{rate}} %)',
           totalTtc: 'Total TTC',
           generate: 'Émettre la facture PDF',
-          previewPdf: 'Aperçu PDF',
-          previewPdfError: 'Impossible de générer l’aperçu PDF.',
+          livePdfTitle: 'Aperçu du document',
+          livePdfHint: 'Mis à jour automatiquement après une courte pause de saisie.',
+          livePdfEmpty: 'Choisissez un client et des lignes avec un total HT > 0 pour afficher l’aperçu.',
+          livePdfLoading: 'Génération du PDF…',
+          livePdfError: 'Impossible de générer l’aperçu.',
+          livePdfOpenTab: 'Ouvrir',
           errClient: 'Choisissez un client',
           errDescription: 'Libellé requis',
           errQuantity: 'Quantité invalide',
@@ -714,7 +719,8 @@ const resources = {
         },
         detail: {
           back: 'Back to invoices',
-          subtitle: 'Status, amounts and lines — the PDF is rebuilt when you save.',
+          subtitle:
+            'Status, amounts and lines — the PDF preview on the right updates as you type; the stored file is rebuilt when you save.',
           metaSection: 'General information',
           metaHint: 'Client, status, dates and PDF document.',
           status: 'Status',
@@ -761,7 +767,7 @@ const resources = {
         },
         invoiceForm: {
           subtitle:
-            'Build line items like a modern invoicing tool: label, quantity, unit (day, month, hour, flat fee) and unit price. The PDF matches what you validate.',
+            'Build line items like a modern invoicing tool: label, quantity, unit (day, month, hour, flat fee) and unit price. On large screens the PDF preview on the right updates as you edit.',
           clientSection: 'Bill to',
           clientHint: 'Used on the PDF (client address block).',
           client: 'Client',
@@ -803,8 +809,12 @@ const resources = {
           vatPreview: 'VAT ({{rate}} %)',
           totalTtc: 'Total inc. VAT',
           generate: 'Issue PDF invoice',
-          previewPdf: 'Preview PDF',
-          previewPdfError: 'Could not generate the PDF preview.',
+          livePdfTitle: 'Document preview',
+          livePdfHint: 'Updates automatically after a short pause while you edit.',
+          livePdfEmpty: 'Select a client and line items with a total ex. VAT > 0 to see the preview.',
+          livePdfLoading: 'Generating PDF…',
+          livePdfError: 'Could not generate the preview.',
+          livePdfOpenTab: 'Open',
           errClient: 'Please select a client',
           errDescription: 'Description is required',
           errQuantity: 'Invalid quantity',
