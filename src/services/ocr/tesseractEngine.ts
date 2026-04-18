@@ -1,12 +1,12 @@
 import Tesseract from 'tesseract.js'
 
-import { parseTableText } from '@/services/ocr/parseTableText'
+import { parseTableText, type ParseTableOptions } from '@/services/ocr/parseTableText'
 import type { OcrEngine, OcrResult } from '@/services/ocr/types'
 
 export class TesseractOcrEngine implements OcrEngine {
   readonly id = 'tesseract-js'
 
-  async recognize(imageDataUrl: string, lang: string): Promise<OcrResult> {
+  async recognize(imageDataUrl: string, lang: string, parseOptions?: ParseTableOptions): Promise<OcrResult> {
     const result = await Tesseract.recognize(imageDataUrl, lang, {
       logger: () => undefined,
     })
@@ -15,7 +15,7 @@ export class TesseractOcrEngine implements OcrEngine {
     const pageConf = typeof result.data.confidence === 'number' ? result.data.confidence : null
     const averageConfidence = pageConf != null && pageConf > 0 ? pageConf : null
 
-    const rows = parseTableText(rawText, averageConfidence)
+    const rows = parseTableText(rawText, averageConfidence, parseOptions)
 
     return {
       rawText,

@@ -15,17 +15,42 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
 import { getCroppedImageDataUrl } from '@/lib/cropImage'
 import { cn } from '@/lib/utils'
 import { ManualMonthForm } from '@/pages/import/ManualMonthForm'
 import { supabase } from '@/lib/supabase/client'
 import { applyAutoContrastToDataUrl } from '@/services/image/autoContrast'
-import { createDefaultOcrEngine } from '@/services/ocr/tesseractEngine'
+import { DOCUMENT_SOURCE_IDS, inferDocumentProfileFromFileName } from '@/services/ocr/documentSources'
+import { runOcrPipeline } from '@/services/ocr/pipeline/runPipeline'
+import type { ParseTableProfile } from '@/services/ocr/parseTableText'
 import type { OcrResult } from '@/services/ocr/types'
 
 type ImportMode = 'pick' | 'scan' | 'manual'
+
+function humanReviewReasonKey(reason: string | undefined): string {
+  switch (reason) {
+    case 'no_rows':
+      return 'import.humanReviewReason.no_rows'
+    case 'low_avg_confidence':
+      return 'import.humanReviewReason.low_avg_confidence'
+    case 'low_page_confidence':
+      return 'import.humanReviewReason.low_page_confidence'
+    case 'many_weak_rows':
+      return 'import.humanReviewReason.many_weak_rows'
+    default:
+      return 'import.humanReviewReason.generic'
+  }
+}
 
 export default function ImportPage() {
   const { t } = useTranslation()
@@ -44,6 +69,8 @@ export default function ImportPage() {
   const [ocrBusy, setOcrBusy] = useState(false)
   const [saveBusy, setSaveBusy] = useState(false)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  const [documentProfile, setDocumentProfile] = useState<ParseTableProfile>('auto')
+  const [contrastApplied, setContrastApplied] = useState(false)
 
   const resetScanFlow = useCallback(() => {
     setImageSrc(null)
@@ -53,6 +80,8 @@ export default function ImportPage() {
     setZoom(1)
     setCroppedAreaPixels(null)
     setOcrResult(null)
+    setDocumentProfile('auto')
+    setContrastApplied(false)
   }, [])
 
   const goPick = useCallback(() => {
@@ -65,6 +94,8 @@ export default function ImportPage() {
       toast.error(t('import.scanFileError'))
       return
     }
+    setDocumentProfile(inferDocumentProfileFromFileName(file.name))
+    setContrastApplied(false)
     const reader = new FileReader()
     reader.onload = () => {
       const r = reader.result
@@ -91,6 +122,7 @@ export default function ImportPage() {
     try {
       const next = await applyAutoContrastToDataUrl(workingSrc)
       setWorkingSrc(next)
+      setContrastApplied(true)
       toast.success(t('import.contrastOk'))
     } catch {
       toast.error(t('import.contrastFail'))
@@ -104,8 +136,12 @@ export default function ImportPage() {
     }
     setOcrBusy(true)
     try {
-      const engine = createDefaultOcrEngine()
-      const res = await engine.recognize(workingSrc, 'fra+eng')
+      const res = await runOcrPipeline({
+        imageDataUrl: workingSrc,
+        lang: 'fra+eng',
+        documentSource: documentProfile,
+        skipContrast: contrastApplied,
+      })
       setOcrResult(res)
       toast.success(t('import.ocrOk'))
     } catch (e) {
@@ -175,6 +211,7 @@ export default function ImportPage() {
       setWorkingSrc(cropped)
       setCropOpen(false)
       setOcrResult(null)
+      setContrastApplied(false)
       toast.success(t('import.cropOk'))
     } catch {
       toast.error(t('import.cropFail'))
@@ -284,6 +321,23 @@ export default function ImportPage() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">{t('import.documentProfile')}</Label>
+                <Select value={documentProfile} onValueChange={(v) => setDocumentProfile(v as ParseTableProfile)}>
+                  <SelectTrigger className="h-10 max-w-md bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOCUMENT_SOURCE_IDS.map((id) => (
+                      <SelectItem key={id} value={id}>
+                        {t(`import.documentProfileOption.${id}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{t('import.documentProfileHint')}</p>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
                   <label className="cursor-pointer">
@@ -319,7 +373,31 @@ export default function ImportPage() {
               ) : null}
 
               {ocrResult ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {ocrResult.pipeline?.requiresHumanReview ? (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+                      <p className="font-medium">{t('import.humanReviewTitle')}</p>
+                      <p className="mt-1 text-xs opacity-90">
+                        {t(humanReviewReasonKey(ocrResult.pipeline.humanReviewReason))}
+                      </p>
+                    </div>
+                  ) : null}
+                  {ocrResult.pipeline?.stages?.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {ocrResult.pipeline.stages.map((s) => (
+                        <Badge
+                          key={s.id}
+                          variant={s.ok ? 'secondary' : 'warning'}
+                          className="gap-1 font-normal"
+                        >
+                          <span>{t(`import.pipelineStage.${s.id}`)}</span>
+                          {s.ms != null && s.ms > 0 ? (
+                            <span className="tabular-nums text-muted-foreground">{s.ms}ms</span>
+                          ) : null}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>
                       {t('import.ocrEngine')}: {ocrResult.engineId}
