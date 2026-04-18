@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -102,7 +102,8 @@ export default function InvoiceEditPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const formSchema = useMemo(() => createEditInvoiceFormSchema(t), [t])
-  const formBootstrapped = useRef(false)
+  /** Dernière facture pour laquelle on a appliqué `reset` (évite de sauter le reset au changement d’URL). */
+  const lastHydratedInvoiceId = useRef<string | null>(null)
 
   const [numberDialogOpen, setNumberDialogOpen] = useState(false)
   const [pendingNumber, setPendingNumber] = useState('')
@@ -185,17 +186,26 @@ export default function InvoiceEditPage() {
   const vatAmount = (subtotalHt * (Number(watchedVat) || 0)) / 100
   const totalTtc = subtotalHt + vatAmount
 
-  useEffect(() => {
-    formBootstrapped.current = false
+  useLayoutEffect(() => {
+    lastHydratedInvoiceId.current = null
   }, [id])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const inv = invoiceQuery.data
-    const items = itemsQuery.data
-    if (!inv || !items || formBootstrapped.current) return
+    if (!inv || !id || !itemsQuery.isSuccess || !clients.isSuccess) return
+    if (lastHydratedInvoiceId.current === id) return
+
+    const items = itemsQuery.data ?? []
+    const rawStatus = String(inv.status ?? '').trim()
+    const normalized =
+      rawStatus === 'draft' || rawStatus === 'sent' ? 'pending' : rawStatus
+    const status = (INVOICE_STATUSES as readonly string[]).includes(normalized as InvoiceStatus)
+      ? (normalized as FormValues['status'])
+      : 'pending'
+
     form.reset({
       clientId: inv.client_id,
-      status: (INVOICE_STATUSES as readonly string[]).includes(inv.status) ? inv.status : 'pending',
+      status,
       issueDate: inv.issue_date,
       vatRate: inv.vat_rate,
       notes: inv.notes ?? '',
@@ -219,8 +229,8 @@ export default function InvoiceEditPage() {
             }))
           : [emptyLine()],
     })
-    formBootstrapped.current = true
-  }, [invoiceQuery.data, itemsQuery.data, form])
+    lastHydratedInvoiceId.current = id
+  }, [id, invoiceQuery.data, itemsQuery.isSuccess, itemsQuery.data, clients.isSuccess, clients.data, form])
 
   useEffect(() => {
     if (invoiceQuery.isSuccess && invoiceQuery.data === null) {
@@ -398,15 +408,27 @@ export default function InvoiceEditPage() {
     onError: () => toast.error(t('invoices.detail.deleteError')),
   })
 
-  const inv = invoiceQuery.data
   const busy = form.formState.isSubmitting || saveInvoice.isPending
 
   const openNumberDialog = () => {
-    if (inv) setPendingNumber(inv.invoice_number)
+    const row = invoiceQuery.data
+    if (row) setPendingNumber(row.invoice_number)
     setNumberDialogOpen(true)
   }
 
-  if (invoiceQuery.isLoading || itemsQuery.isLoading) {
+  if (invoiceQuery.isSuccess && invoiceQuery.data === null) {
+    return null
+  }
+
+  const waitingForData =
+    invoiceQuery.isPending ||
+    !invoiceQuery.data ||
+    itemsQuery.isPending ||
+    !itemsQuery.isSuccess ||
+    clients.isPending ||
+    !clients.isSuccess
+
+  if (waitingForData) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <Skeleton className="h-10 w-48" />
@@ -415,9 +437,7 @@ export default function InvoiceEditPage() {
     )
   }
 
-  if (!inv) {
-    return null
-  }
+  const inv = invoiceQuery.data as Invoice
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 pb-16">
