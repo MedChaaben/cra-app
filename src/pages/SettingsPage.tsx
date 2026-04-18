@@ -21,9 +21,8 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
+import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
 import type { Profile, Settings } from '@/types/models'
-
-const TEMPLATES = ['minimal', 'corporate', 'luxe', 'consultant_it'] as const
 
 const schema = z.object({
   full_name: z.string().optional(),
@@ -37,7 +36,7 @@ const schema = z.object({
   iban: z.string().optional(),
   bic: z.string().optional(),
   vat_zero_note: z.string().optional(),
-  invoice_template: z.enum(TEMPLATES),
+  invoice_template: z.enum(INVOICE_PDF_TEMPLATE_IDS as unknown as [InvoicePdfTemplateId, ...InvoicePdfTemplateId[]]),
   invoice_payment_terms: z.string().optional(),
   invoice_late_penalty: z.string().optional(),
   invoice_sepa_qr: z.boolean(),
@@ -94,7 +93,7 @@ export default function SettingsPage() {
       iban: profile.data.iban ?? '',
       bic: profile.data.bic ?? '',
       vat_zero_note: profile.data.vat_zero_note ?? '',
-      invoice_template: (TEMPLATES as readonly string[]).includes(String(settings.data.invoice_template))
+      invoice_template: (INVOICE_PDF_TEMPLATE_IDS as readonly string[]).includes(String(settings.data.invoice_template))
         ? (settings.data.invoice_template as FormValues['invoice_template'])
         : 'corporate',
       invoice_payment_terms: settings.data.invoice_payment_terms ?? '',
@@ -229,7 +228,7 @@ export default function SettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEMPLATES.map((id) => (
+                  {INVOICE_PDF_TEMPLATE_IDS.map((id) => (
                     <SelectItem key={id} value={id}>
                       {t(`settings.template.${id}`)}
                     </SelectItem>

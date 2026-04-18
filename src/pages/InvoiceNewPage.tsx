@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { InvoiceTemplatePicker } from '@/components/invoices/InvoiceTemplatePicker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,9 +32,9 @@ import {
 import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
+import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
 import type { Client, Invoice, InvoiceItem, Profile, Settings, Timesheet, TimesheetEntry } from '@/types/models'
 
-const PDF_TEMPLATES = ['minimal', 'corporate', 'luxe', 'consultant_it'] as const
 const INVOICE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'] as const
 
 function createInvoiceFormSchema(t: (k: string) => string) {
@@ -52,7 +53,7 @@ function createInvoiceFormSchema(t: (k: string) => string) {
       dueDate: z.string().optional(),
       currency: z.enum(INVOICE_CURRENCIES),
       pdfLocale: z.enum(['fr', 'en']),
-      pdfTemplate: z.enum(PDF_TEMPLATES),
+      pdfTemplate: z.enum(INVOICE_PDF_TEMPLATE_IDS as unknown as [InvoicePdfTemplateId, ...InvoicePdfTemplateId[]]),
       lines: z.array(lineSchema).min(1),
     })
     .superRefine((data, ctx) => {
@@ -181,7 +182,7 @@ export default function InvoiceNewPage() {
     const loc = String(settings.data.locale ?? '').toLowerCase().startsWith('en') ? 'en' : 'fr'
     form.setValue('pdfLocale', loc)
     const tpl = String(settings.data.invoice_template ?? 'corporate')
-    if ((PDF_TEMPLATES as readonly string[]).includes(tpl)) {
+    if ((INVOICE_PDF_TEMPLATE_IDS as readonly string[]).includes(tpl)) {
       form.setValue('pdfTemplate', tpl as FormValues['pdfTemplate'])
     }
   }, [settings.data, form])
@@ -534,7 +535,7 @@ export default function InvoiceNewPage() {
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('invoices.invoiceForm.pdfSection')}</p>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>{t('invoices.invoiceForm.currency')}</Label>
                     <Controller
@@ -574,28 +575,20 @@ export default function InvoiceNewPage() {
                       )}
                     />
                   </div>
-                  <div className="space-y-2 sm:col-span-1">
-                    <Label>{t('invoices.invoiceForm.pdfTemplate')}</Label>
-                    <Controller
-                      control={form.control}
-                      name="pdfTemplate"
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger className="h-10 bg-background">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PDF_TEMPLATES.map((tpl) => (
-                              <SelectItem key={tpl} value={tpl}>
-                                {t(`settings.template.${tpl}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
                 </div>
+                <Controller
+                  control={form.control}
+                  name="pdfTemplate"
+                  render={({ field }) => (
+                    <InvoiceTemplatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      brandPrimary={profile.data?.brand_primary}
+                      brandSecondary={profile.data?.brand_secondary}
+                      disabled={busy}
+                    />
+                  )}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">{t('invoices.invoiceForm.notes')}</Label>

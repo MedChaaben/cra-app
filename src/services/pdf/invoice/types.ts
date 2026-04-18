@@ -2,7 +2,8 @@ import type { Client, Invoice, InvoiceItem, Profile, Settings } from '@/types/mo
 
 export type InvoicePdfLocale = 'fr' | 'en'
 
-export type InvoicePdfTemplateId = 'minimal' | 'corporate' | 'luxe' | 'consultant_it'
+export const INVOICE_PDF_TEMPLATE_IDS = ['minimal', 'corporate', 'luxe', 'consultant_it'] as const
+export type InvoicePdfTemplateId = (typeof INVOICE_PDF_TEMPLATE_IDS)[number]
 
 export type InvoicePdfInput = {
   profile: Profile
@@ -19,6 +20,5 @@ export function normalizeInvoicePdfLocale(v: string | null | undefined): Invoice
 
 export function normalizeInvoicePdfTemplate(v: string | null | undefined): InvoicePdfTemplateId {
   const t = (v ?? 'corporate').toLowerCase()
-  if (t === 'minimal' || t === 'luxe' || t === 'consultant_it') return t
-  return 'corporate'
+  return (INVOICE_PDF_TEMPLATE_IDS as readonly string[]).includes(t) ? (t as InvoicePdfTemplateId) : 'corporate'
 }

@@ -174,6 +174,15 @@ const resources = {
           optionsSection: 'Échéance, TVA & document',
           pdfSection: 'Document PDF',
           pdfTemplate: 'Modèle visuel',
+          templateVisualLabel: 'Modèle visuel du PDF',
+          templateVisualHint:
+            'Aperçu stylisé : le PDF final reprend la même hiérarchie avec vos couleurs marque (Réglages) et vos lignes de facture.',
+          templateDesc: {
+            minimal: 'Beaucoup d’air, gris neutres, idéal freelances et factures courtes.',
+            corporate: 'Bandeau et en-tête de tableau colorés, rendu entreprise classique.',
+            luxe: 'Barre d’accent et tons chauds, cachet premium sobre.',
+            consultant_it: 'Bloc en-tête contrasté, esprit tech / delivery.',
+          },
           pdfLocale: 'Langue du PDF',
           currency: 'Devise',
           vat: 'TVA (%)',
@@ -439,6 +448,15 @@ const resources = {
           optionsSection: 'Due date, VAT & document',
           pdfSection: 'PDF document',
           pdfTemplate: 'Visual template',
+          templateVisualLabel: 'PDF visual template',
+          templateVisualHint:
+            'Stylised preview: the final PDF follows the same structure with your brand colours (Settings) and invoice lines.',
+          templateDesc: {
+            minimal: 'Generous whitespace and neutrals — great for freelancers.',
+            corporate: 'Accent header band and tinted table — classic corporate look.',
+            luxe: 'Vertical accent and warm paper tone — understated premium feel.',
+            consultant_it: 'High-contrast header strip — tech / delivery vibe.',
+          },
           pdfLocale: 'PDF language',
           currency: 'Currency',
           vat: 'VAT (%)',
