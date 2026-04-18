@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
@@ -34,9 +33,9 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-dvh bg-background">
-        <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-md">
-          <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
+      <div className="flex h-svh flex-col overflow-hidden bg-background">
+        <header className="sticky top-0 z-40 shrink-0 border-b border-border bg-card/80 backdrop-blur-md">
+          <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
             <Button
               type="button"
               variant="ghost"
@@ -148,8 +147,7 @@ export function AppShell() {
             </div>
           ) : null}
         </header>
-        <Separator className="opacity-0" />
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-4">
           <Outlet />
         </main>
       </div>

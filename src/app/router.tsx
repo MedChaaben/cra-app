@@ -3,6 +3,8 @@ import { Suspense, lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { InvoiceWorkspaceLayout } from '@/components/layout/InvoiceWorkspaceLayout'
+import { MainScrollLayout } from '@/components/layout/MainScrollLayout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
@@ -57,15 +59,19 @@ export function AppRouter() {
               </Protected>
             }
           >
-            <Route index element={<DashboardPage />} />
-            <Route path="import" element={<ImportPage />} />
-            <Route path="timesheets" element={<TimesheetsPage />} />
-            <Route path="timesheets/:id/edit" element={<TimesheetEditorPage />} />
-            <Route path="clients" element={<ClientsPage />} />
-            <Route path="invoices" element={<InvoicesPage />} />
-            <Route path="invoices/new" element={<InvoiceNewPage />} />
-            <Route path="invoices/:id" element={<InvoiceEditPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route element={<MainScrollLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="import" element={<ImportPage />} />
+              <Route path="timesheets" element={<TimesheetsPage />} />
+              <Route path="timesheets/:id/edit" element={<TimesheetEditorPage />} />
+              <Route path="clients" element={<ClientsPage />} />
+              <Route path="invoices" element={<InvoicesPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+            <Route element={<InvoiceWorkspaceLayout />}>
+              <Route path="invoices/new" element={<InvoiceNewPage />} />
+              <Route path="invoices/:id" element={<InvoiceEditPage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

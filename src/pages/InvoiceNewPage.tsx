@@ -346,12 +346,17 @@ export default function InvoiceNewPage() {
   })
 
   if (clients.isLoading || profile.isLoading || settings.isLoading) {
-    return <p className="text-sm text-muted-foreground">Chargement…</p>
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      </div>
+    )
   }
 
   if (!clients.data?.length) {
     return (
-      <Card className="max-w-lg border-amber-500/40 bg-amber-500/5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <Card className="max-w-lg border-amber-500/40 bg-amber-500/5">
         <CardHeader>
           <CardTitle>{t('invoices.clientRequiredTitle')}</CardTitle>
           <CardDescription>{t('invoices.clientRequiredDesc')}</CardDescription>
@@ -365,6 +370,7 @@ export default function InvoiceNewPage() {
           </Button>
         </CardContent>
       </Card>
+      </div>
     )
   }
 
@@ -374,15 +380,15 @@ export default function InvoiceNewPage() {
   const previewFileName = settings.data ? formatInvoiceNumberFromSettings(settings.data as Settings) : 'facture'
 
   return (
-    <div className="mx-auto w-full max-w-[1580px] space-y-8 px-4 pb-20 sm:px-6">
-      <div>
+    <div className="mx-auto flex min-h-0 w-full max-w-[1580px] flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain pb-8 lg:gap-6 lg:overflow-hidden lg:pb-0">
+      <div className="shrink-0">
         <h1 className="text-3xl font-semibold tracking-tight">{t('invoices.new')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('invoices.invoiceForm.subtitle')}</p>
       </div>
 
-      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,38vw)] lg:items-stretch lg:gap-8 xl:grid-cols-[minmax(0,640px)_min(420px,440px)]">
-        <div className="min-w-0 space-y-8 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
-          <form className="space-y-8" onSubmit={onSubmit}>
+      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,36vw)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,640px)_min(420px,40%)]">
+        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-2">
+          <form className="space-y-8 pb-2" onSubmit={onSubmit}>
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">{t('invoices.invoiceForm.clientSection')}</CardTitle>
@@ -651,8 +657,12 @@ export default function InvoiceNewPage() {
       </form>
         </div>
 
-        <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
-          <InvoicePdfLivePreviewPanel input={livePreviewInput} downloadBaseName={previewFileName} />
+        <aside className="flex w-full min-w-0 shrink-0 flex-col max-lg:min-h-[min(17rem,42svh)] lg:h-full lg:min-h-0 lg:shrink">
+          <InvoicePdfLivePreviewPanel
+            className="min-h-0 flex-1 max-lg:min-h-[16rem]"
+            input={livePreviewInput}
+            downloadBaseName={previewFileName}
+          />
         </aside>
       </div>
     </div>

@@ -98,6 +98,22 @@ function isUniqueViolation(err: { code?: string; message?: string } | null): boo
   return m.includes('unique') || m.includes('duplicate')
 }
 
+/** Colonne renvoyée en snake_case par PostgREST ; tolère `clientId` si jamais transformé côté client. */
+function readInvoiceClientId(inv: Invoice | Record<string, unknown>): string {
+  const r = inv as Record<string, unknown>
+  const v = r.client_id ?? r.clientId
+  if (typeof v !== 'string') return ''
+  return v.trim()
+}
+
+function normalizeInvoiceStatusForForm(status: unknown): FormValues['status'] {
+  const raw = String(status ?? '').trim().toLowerCase()
+  const normalized = raw === 'draft' || raw === 'sent' ? 'pending' : raw
+  return (INVOICE_STATUSES as readonly string[]).includes(normalized as InvoiceStatus)
+    ? (normalized as FormValues['status'])
+    : 'pending'
+}
+
 export default function InvoiceEditPage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useTranslation()
@@ -141,6 +157,42 @@ export default function InvoiceEditPage() {
       return (data ?? []) as Client[]
     },
   })
+
+  const clientIdOnInvoice = invoiceQuery.data ? readInvoiceClientId(invoiceQuery.data) : ''
+  const needsOrphanClientFetch = Boolean(
+    invoiceQuery.data && clients.isSuccess && clientIdOnInvoice && !clients.data?.some((c) => c.id === clientIdOnInvoice),
+  )
+
+  const orphanClient = useQuery({
+    queryKey: ['client', clientIdOnInvoice],
+    enabled: Boolean(user?.id && needsOrphanClientFetch),
+    queryFn: async (): Promise<Client | null> => {
+      const { data, error } = await supabase.from('clients').select('*').eq('id', clientIdOnInvoice).maybeSingle()
+      if (error) throw error
+      return (data as Client) ?? null
+    },
+  })
+
+  const clientSelectOptions = useMemo((): Client[] => {
+    const base = [...(clients.data ?? [])]
+    if (!clientIdOnInvoice) return base
+    if (base.some((c) => c.id === clientIdOnInvoice)) return base
+    if (orphanClient.data) return [...base, orphanClient.data]
+    return [
+      ...base,
+      {
+        id: clientIdOnInvoice,
+        user_id: user?.id ?? '',
+        created_at: '',
+        updated_at: '',
+        name: `${clientIdOnInvoice.slice(0, 8)}…`,
+        email: null,
+        address: null,
+        vat_number: null,
+        billing_notes: null,
+      },
+    ]
+  }, [clients.data, clientIdOnInvoice, orphanClient.data, user?.id])
 
   const profile = useQuery({
     queryKey: ['profile', user?.id],
@@ -195,24 +247,27 @@ export default function InvoiceEditPage() {
     lastHydratedInvoiceId.current = null
   }, [id])
 
-  useLayoutEffect(() => {
+  /**
+   * `reset` doit s’exécuter après l’enregistrement des champs par les `Controller` (effet post-commit).
+   * Un `reset` dans `useLayoutEffect` peut partir avant les `useController` / Radix Select, ce qui laisse
+   * les listes déroulantes sans valeur affichée.
+   */
+  useEffect(() => {
     const inv = invoiceQuery.data
     if (!inv || !id || !itemsQuery.isSuccess || !clients.isSuccess) return
     if (lastHydratedInvoiceId.current === id) return
 
     const items = itemsQuery.data ?? []
-    const rawStatus = String(inv.status ?? '').trim()
-    const normalized =
-      rawStatus === 'draft' || rawStatus === 'sent' ? 'pending' : rawStatus
-    const status = (INVOICE_STATUSES as readonly string[]).includes(normalized as InvoiceStatus)
-      ? (normalized as FormValues['status'])
-      : 'pending'
+    const status = normalizeInvoiceStatusForForm(inv.status)
+    const clientId = readInvoiceClientId(inv)
+    const vatRaw = inv.vat_rate
+    const vatRate = typeof vatRaw === 'number' && Number.isFinite(vatRaw) ? vatRaw : Number(vatRaw) || 0
 
     form.reset({
-      clientId: inv.client_id,
+      clientId,
       status,
       issueDate: inv.issue_date,
-      vatRate: inv.vat_rate,
+      vatRate,
       notes: inv.notes ?? '',
       dueDate: inv.due_date ?? '',
       currency: (INVOICE_CURRENCIES as readonly string[]).includes(inv.currency) ? (inv.currency as FormValues['currency']) : 'EUR',
@@ -235,7 +290,7 @@ export default function InvoiceEditPage() {
           : [emptyLine()],
     })
     lastHydratedInvoiceId.current = id
-  }, [id, invoiceQuery.data, itemsQuery.isSuccess, itemsQuery.data, clients.isSuccess, clients.data, form])
+  }, [id, invoiceQuery.data, itemsQuery.isSuccess, itemsQuery.data, clients.isSuccess, clients.data, form.reset])
 
   useEffect(() => {
     if (invoiceQuery.isSuccess && invoiceQuery.data === null) {
@@ -307,7 +362,7 @@ export default function InvoiceEditPage() {
         .order('created_at')
       if (loadErr || !savedItems?.length) throw loadErr ?? new Error('items')
 
-      const client = clients.data?.find((c) => c.id === values.clientId)
+      const client = clientSelectOptions.find((c) => c.id === values.clientId)
       if (!client || !profile.data || !settings.data) throw new Error('context')
 
       const updatedInvoice: Invoice = {
@@ -420,11 +475,11 @@ export default function InvoiceEditPage() {
       debouncedForm as FormValues,
       row,
       id,
-      clients.data ?? [],
+      clientSelectOptions,
       profile.data,
       settings.data,
     )
-  }, [user?.id, id, invoiceQuery.data, profile.data, settings.data, clients.data, debouncedForm])
+  }, [user?.id, id, invoiceQuery.data, profile.data, settings.data, clientSelectOptions, debouncedForm])
 
   const busy = form.formState.isSubmitting || saveInvoice.isPending
 
@@ -448,9 +503,11 @@ export default function InvoiceEditPage() {
 
   if (waitingForData) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto w-full max-w-3xl space-y-4">
+          <Skeleton className="h-10 w-48" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       </div>
     )
   }
@@ -458,8 +515,8 @@ export default function InvoiceEditPage() {
   const inv = invoiceQuery.data as Invoice
 
   return (
-    <div className="mx-auto w-full max-w-[1580px] space-y-8 px-4 pb-20 sm:px-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto flex min-h-0 w-full max-w-[1580px] flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain pb-8 lg:gap-6 lg:overflow-hidden lg:pb-0">
+      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-8 px-2">
             <Link to="/invoices">
@@ -481,9 +538,9 @@ export default function InvoiceEditPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,38vw)] lg:items-stretch lg:gap-8 xl:grid-cols-[minmax(0,640px)_min(420px,440px)]">
-        <div className="min-w-0 space-y-8 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
-          <form className="space-y-8" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
+      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,36vw)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,640px)_min(420px,40%)]">
+        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-2">
+          <form className="space-y-8 pb-2" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
         <Card className="border-border/80">
           <CardHeader>
             <CardTitle className="text-lg">{t('invoices.detail.metaSection')}</CardTitle>
@@ -501,7 +558,7 @@ export default function InvoiceEditPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {clients.data?.map((c) => (
+                      {clientSelectOptions.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
                         </SelectItem>
@@ -715,8 +772,12 @@ export default function InvoiceEditPage() {
       </form>
         </div>
 
-        <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
-          <InvoicePdfLivePreviewPanel input={livePreviewInput} downloadBaseName={inv.invoice_number} />
+        <aside className="flex w-full min-w-0 shrink-0 flex-col max-lg:min-h-[min(17rem,42svh)] lg:h-full lg:min-h-0 lg:shrink">
+          <InvoicePdfLivePreviewPanel
+            className="min-h-0 flex-1 max-lg:min-h-[16rem]"
+            input={livePreviewInput}
+            downloadBaseName={inv.invoice_number}
+          />
         </aside>
       </div>
 
