@@ -1,4 +1,14 @@
-import { endOfMonth, endOfYear, format, getDayOfYear, getDaysInYear, startOfMonth, startOfYear } from 'date-fns'
+import {
+  endOfMonth,
+  endOfYear,
+  format,
+  getDayOfYear,
+  getDaysInYear,
+  startOfMonth,
+  startOfYear,
+} from 'date-fns'
+
+import { dateInRange, monthsSpannedInclusive, type ClosedDateRange } from '@/lib/reportingPeriod'
 
 export type DashboardMetrics = {
   hoursMonth: number
@@ -32,9 +42,11 @@ export type RawEntryRow = {
 export type RawInvoiceRow = {
   id: string
   client_id: string
+  issue_date?: string
   due_date: string | null
   status: string
   total_ttc: number | string | null
+  subtotal_ht?: number | string | null
 }
 
 function num(v: number | string | null | undefined): number {
@@ -150,5 +162,144 @@ export function buildDashboardMetrics(
     gapToInvoiceHt,
     timesheetCount,
     invoiceCount,
+  }
+}
+
+export type ReportingDashboardMetrics = {
+  craRevenueHt: number
+  craHours: number
+  soldDays: number
+  avgDailyRate: number
+  avgMonthlyRevenueHt: number
+  invoicesCountInPeriod: number
+  invoicesHtInPeriod: number
+  invoicesTtcInPeriod: number
+  latePaymentCount: number
+  latePaymentAmountTtc: number
+  topClientName: string | null
+  topClientUnassigned: boolean
+  topClientRevenueHt: number
+  yearEndProjectionHt: number | null
+  gapToInvoiceHt: number
+  timesheetsInPeriod: number
+  timesheetIdsInPeriod: string[]
+}
+
+function invoicePaid(status: string): boolean {
+  return status === 'paid'
+}
+
+function invoiceIssueInPeriod(inv: RawInvoiceRow, range: ClosedDateRange | null): boolean {
+  const issue = inv.issue_date
+  if (!issue) return false
+  return dateInRange(issue, range)
+}
+
+/** Agrégats tableau de bord pour une période fermée ou tout l’historique (`range === null`). */
+export function buildReportingDashboardMetrics(
+  now: Date,
+  range: ClosedDateRange | null,
+  entries: RawEntryRow[],
+  invoices: RawInvoiceRow[],
+  invoicedEntryIds: Set<string>,
+  clientNames: Map<string, string>,
+  timesheetIdsInPeriod: Set<string>,
+): ReportingDashboardMetrics {
+  const today = format(now, 'yyyy-MM-dd')
+  const months = range ? monthsSpannedInclusive(range) : 1
+
+  let craRevenueHt = 0
+  let craHours = 0
+  const byClient = new Map<string, number>()
+
+  for (const e of entries) {
+    const d = e.work_date
+    if (!dateInRange(d, range)) continue
+    const h = num(e.hours)
+    const ht = entryHt(e)
+    craHours += h
+    craRevenueHt += ht
+    const cid = e.client_id ?? ''
+    const key = cid || '__none__'
+    byClient.set(key, (byClient.get(key) ?? 0) + ht)
+  }
+
+  let topKey: string | null = null
+  let topClientRevenueHt = 0
+  for (const [cid, rev] of byClient) {
+    if (rev > topClientRevenueHt) {
+      topClientRevenueHt = rev
+      topKey = cid
+    }
+  }
+  const topClientUnassigned = topKey === '__none__'
+  let topClientName: string | null = null
+  if (topKey && topClientRevenueHt > 0 && !topClientUnassigned) {
+    topClientName =
+      clientNames.get(topKey)?.trim() ||
+      entries.find((e) => e.client_id === topKey)?.client_name?.trim() ||
+      null
+  }
+
+  const soldDays = craHours
+  const avgDailyRate = soldDays > 0 ? craRevenueHt / soldDays : 0
+  const avgMonthlyRevenueHt = months > 0 ? craRevenueHt / months : 0
+
+  let invoicesCountInPeriod = 0
+  let invoicesHtInPeriod = 0
+  let invoicesTtcInPeriod = 0
+  let latePaymentCount = 0
+  let latePaymentAmountTtc = 0
+
+  for (const inv of invoices) {
+    if (!invoiceIssueInPeriod(inv, range)) continue
+    invoicesCountInPeriod += 1
+    invoicesHtInPeriod += num(inv.subtotal_ht ?? null)
+    invoicesTtcInPeriod += num(inv.total_ttc)
+    if (invoicePaid(inv.status)) continue
+    const due = inv.due_date
+    if (!due || due >= today) continue
+    latePaymentCount += 1
+    latePaymentAmountTtc += num(inv.total_ttc)
+  }
+
+  let gapToInvoiceHt = 0
+  for (const e of entries) {
+    if (!dateInRange(e.work_date, range)) continue
+    if (invoicedEntryIds.has(e.id)) continue
+    gapToInvoiceHt += entryHt(e)
+  }
+
+  let yearEndProjectionHt: number | null = null
+  if (range) {
+    const year = now.getFullYear()
+    const yearStart = format(startOfYear(now), 'yyyy-MM-dd')
+    const yearEnd = format(endOfYear(now), 'yyyy-MM-dd')
+    const isCurrentYearSlice = range.start === yearStart && range.end === yearEnd && year === now.getFullYear()
+    if (isCurrentYearSlice) {
+      const doy = getDayOfYear(now)
+      const daysInYear = getDaysInYear(now)
+      yearEndProjectionHt = doy > 0 && craRevenueHt > 0 ? (craRevenueHt * daysInYear) / doy : craRevenueHt
+    }
+  }
+
+  return {
+    craRevenueHt,
+    craHours,
+    soldDays,
+    avgDailyRate,
+    avgMonthlyRevenueHt,
+    invoicesCountInPeriod,
+    invoicesHtInPeriod,
+    invoicesTtcInPeriod,
+    latePaymentCount,
+    latePaymentAmountTtc,
+    topClientName,
+    topClientUnassigned,
+    topClientRevenueHt,
+    yearEndProjectionHt,
+    gapToInvoiceHt,
+    timesheetsInPeriod: timesheetIdsInPeriod.size,
+    timesheetIdsInPeriod: [...timesheetIdsInPeriod],
   }
 }

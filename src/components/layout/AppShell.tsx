@@ -60,6 +60,9 @@ export function AppShell() {
               <NavLink to="/import" className={navClass}>
                 {t('nav.import')}
               </NavLink>
+              <NavLink to="/timesheets" className={navClass}>
+                {t('nav.timesheets')}
+              </NavLink>
               <NavLink to="/clients" className={navClass}>
                 {t('nav.clients')}
               </NavLink>
@@ -128,6 +131,9 @@ export function AppShell() {
                 </NavLink>
                 <NavLink to="/import" className={navClass}>
                   {t('nav.import')}
+                </NavLink>
+                <NavLink to="/timesheets" className={navClass}>
+                  {t('nav.timesheets')}
                 </NavLink>
                 <NavLink to="/clients" className={navClass}>
                   {t('nav.clients')}
