@@ -28,15 +28,19 @@ import {
   BILLING_UNITS,
   suggestLineFromCra,
 } from '@/lib/invoiceCraAggregate'
+import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
-import type { BillingUnit, Client, Invoice, InvoiceItem, Profile, Timesheet } from '@/types/models'
+import type { Client, Invoice, InvoiceItem, Profile, Settings, Timesheet, TimesheetEntry } from '@/types/models'
 
-function useInvoiceFormSchema(t: (k: string) => string) {
+const PDF_TEMPLATES = ['minimal', 'corporate', 'luxe', 'consultant_it'] as const
+const INVOICE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'] as const
+
+function createInvoiceFormSchema(t: (k: string) => string) {
   const lineSchema = z.object({
     description: z.string().trim().min(1, t('invoices.invoiceForm.errDescription')),
-    quantity: z.coerce.number().refine((n) => Number.isFinite(n) && n > 0, t('invoices.invoiceForm.errQuantity')),
-    unitPrice: z.coerce.number().refine((n) => Number.isFinite(n) && n >= 0, t('invoices.invoiceForm.errPrice')),
+    quantity: z.number().refine((n) => Number.isFinite(n) && n > 0, t('invoices.invoiceForm.errQuantity')),
+    unitPrice: z.number().refine((n) => Number.isFinite(n) && n >= 0, t('invoices.invoiceForm.errPrice')),
     billingUnit: z.enum(['day', 'month', 'hour', 'flat']),
   })
 
@@ -46,6 +50,9 @@ function useInvoiceFormSchema(t: (k: string) => string) {
       vatRate: z.number().min(0).max(100),
       notes: z.string().optional(),
       dueDate: z.string().optional(),
+      currency: z.enum(INVOICE_CURRENCIES),
+      pdfLocale: z.enum(['fr', 'en']),
+      pdfTemplate: z.enum(PDF_TEMPLATES),
       lines: z.array(lineSchema).min(1),
     })
     .superRefine((data, ctx) => {
@@ -60,13 +67,7 @@ function useInvoiceFormSchema(t: (k: string) => string) {
     })
 }
 
-type FormValues = {
-  clientId: string
-  vatRate: number
-  notes: string
-  dueDate: string
-  lines: { description: string; quantity: number; unitPrice: number; billingUnit: BillingUnit }[]
-}
+type FormValues = z.infer<ReturnType<typeof createInvoiceFormSchema>>
 
 const emptyLine = (): FormValues['lines'][number] => ({
   description: '',
@@ -83,8 +84,9 @@ export default function InvoiceNewPage() {
   const timesheetId = params.get('timesheetId')
   const qc = useQueryClient()
   const craImportDone = useRef(false)
+  const pdfDefaultsSynced = useRef(false)
 
-  const formSchema = useMemo(() => useInvoiceFormSchema(t), [t])
+  const formSchema = useMemo(() => createInvoiceFormSchema(t), [t])
 
   const clients = useQuery({
     queryKey: ['clients', user?.id],
@@ -147,6 +149,9 @@ export default function InvoiceNewPage() {
       notes: '',
       dueDate: '',
       clientId: '',
+      currency: 'EUR',
+      pdfLocale: 'fr',
+      pdfTemplate: 'corporate',
       lines: [emptyLine()],
     },
   })
@@ -155,6 +160,9 @@ export default function InvoiceNewPage() {
 
   const watchedLines = useWatch({ control: form.control, name: 'lines' })
   const watchedVat = useWatch({ control: form.control, name: 'vatRate' }) ?? 20
+  const watchedCurrency = useWatch({ control: form.control, name: 'currency' }) ?? 'EUR'
+  const watchedPdfLocale = useWatch({ control: form.control, name: 'pdfLocale' }) ?? 'fr'
+  const numLocale = watchedPdfLocale === 'en' ? 'en-US' : 'fr-FR'
 
   const subtotalHt = (watchedLines ?? []).reduce((s, l) => s + (Number(l?.quantity) || 0) * (Number(l?.unitPrice) || 0), 0)
   const vatAmount = (subtotalHt * (Number(watchedVat) || 0)) / 100
@@ -166,6 +174,17 @@ export default function InvoiceNewPage() {
       form.setValue('clientId', first)
     }
   }, [clients.data, form])
+
+  useEffect(() => {
+    if (!settings.data || pdfDefaultsSynced.current) return
+    pdfDefaultsSynced.current = true
+    const loc = String(settings.data.locale ?? '').toLowerCase().startsWith('en') ? 'en' : 'fr'
+    form.setValue('pdfLocale', loc)
+    const tpl = String(settings.data.invoice_template ?? 'corporate')
+    if ((PDF_TEMPLATES as readonly string[]).includes(tpl)) {
+      form.setValue('pdfTemplate', tpl as FormValues['pdfTemplate'])
+    }
+  }, [settings.data, form])
 
   useEffect(() => {
     if (craImportDone.current) return
@@ -232,7 +251,9 @@ export default function InvoiceNewPage() {
         invoice_number: invoiceNumber,
         issue_date: new Date().toISOString().slice(0, 10),
         due_date: values.dueDate || null,
-        currency: 'EUR',
+        currency: values.currency,
+        pdf_locale: values.pdfLocale,
+        pdf_template: values.pdfTemplate,
         vat_rate: values.vatRate,
         notes: values.notes || null,
         status: 'draft',
@@ -265,7 +286,11 @@ export default function InvoiceNewPage() {
 
     await supabase.from('settings').update({ next_invoice_sequence: seq + 1 }).eq('user_id', user.id)
 
-    const { data: savedItems, error: loadErr } = await supabase.from('invoice_items').select('*').eq('invoice_id', inv.id)
+    const { data: savedItems, error: loadErr } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', inv.id)
+      .order('created_at')
     if (loadErr || !savedItems) {
       toast.error(loadErr?.message ?? 'Erreur chargement lignes')
       return
@@ -273,11 +298,14 @@ export default function InvoiceNewPage() {
 
     const invoiceRow = inv as Invoice
 
+    const logoBytes = await fetchCompanyLogoBytes(supabase, user.id, profile.data.logo_path)
     const pdfBytes = await buildInvoicePdf({
       profile: profile.data,
       client,
       invoice: invoiceRow,
       items: savedItems as InvoiceItem[],
+      settings: settings.data as Settings,
+      logoBytes,
     })
 
     const path = `${user.id}/${inv.id}.pdf`
@@ -375,8 +403,8 @@ export default function InvoiceNewPage() {
               <div className="flex flex-col items-stretch gap-2 sm:items-end">
                 <p className="text-right text-xs text-muted-foreground">
                   {t('invoices.invoiceForm.craSummary', {
-                    days: craDays.toLocaleString('fr-FR', { maximumFractionDigits: 2 }),
-                    total: new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(craHt),
+                    days: craDays.toLocaleString(numLocale, { maximumFractionDigits: 2 }),
+                    total: new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(craHt),
                   })}
                 </p>
                 <Button type="button" variant="secondary" className="shrink-0" onClick={importFromCra}>
@@ -469,7 +497,7 @@ export default function InvoiceNewPage() {
                     <div className="flex flex-col justify-end sm:col-span-3">
                       <Label className="text-xs">{t('invoices.invoiceForm.lineTotal')}</Label>
                       <p className="mt-1.5 rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-right text-sm font-semibold tabular-nums">
-                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
+                        {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(
                           (Number(watchedLines?.[index]?.quantity) || 0) * (Number(watchedLines?.[index]?.unitPrice) || 0),
                         )}
                       </p>
@@ -505,6 +533,71 @@ export default function InvoiceNewPage() {
                 </div>
               </div>
               <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('invoices.invoiceForm.pdfSection')}</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>{t('invoices.invoiceForm.currency')}</Label>
+                    <Controller
+                      control={form.control}
+                      name="currency"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="h-10 bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {INVOICE_CURRENCIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('invoices.invoiceForm.pdfLocale')}</Label>
+                    <Controller
+                      control={form.control}
+                      name="pdfLocale"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="h-10 bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fr">FR</SelectItem>
+                            <SelectItem value="en">EN</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-1">
+                    <Label>{t('invoices.invoiceForm.pdfTemplate')}</Label>
+                    <Controller
+                      control={form.control}
+                      name="pdfTemplate"
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="h-10 bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PDF_TEMPLATES.map((tpl) => (
+                              <SelectItem key={tpl} value={tpl}>
+                                {t(`settings.template.${tpl}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="notes">{t('invoices.invoiceForm.notes')}</Label>
                 <Textarea id="notes" rows={3} className="resize-none bg-background" {...form.register('notes')} />
               </div>
@@ -519,18 +612,20 @@ export default function InvoiceNewPage() {
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">{t('invoices.invoiceForm.subtotal')}</span>
                 <span className="font-medium tabular-nums">
-                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(subtotalHt)}
+                  {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(subtotalHt)}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">{t('invoices.invoiceForm.vatPreview', { rate: watchedVat })}</span>
-                <span className="tabular-nums">{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(vatAmount)}</span>
+                <span className="tabular-nums">
+                  {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(vatAmount)}
+                </span>
               </div>
               <Separator className="bg-amber-500/20" />
               <div className="flex justify-between gap-4 text-base font-semibold">
                 <span>{t('invoices.invoiceForm.totalTtc')}</span>
                 <span className="tabular-nums text-amber-700 dark:text-amber-400">
-                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalTtc)}
+                  {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(totalTtc)}
                 </span>
               </div>
               <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>

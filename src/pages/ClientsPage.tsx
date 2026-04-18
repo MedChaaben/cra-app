@@ -27,11 +27,7 @@ import type { Client } from '@/types/models'
 
 const formSchema = z.object({
   name: z.string().trim().min(1),
-  email: z
-    .string()
-    .optional()
-    .transform((s) => (s ?? '').trim())
-    .pipe(z.union([z.literal(''), z.string().email()])),
+  email: z.string().trim().pipe(z.union([z.literal(''), z.string().email()])),
   address: z.string().optional(),
   vat_number: z.string().optional(),
   billing_notes: z.string().optional(),

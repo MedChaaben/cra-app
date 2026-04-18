@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
+import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
-import type { Client, Invoice, InvoiceItem, Profile } from '@/types/models'
+import type { Client, Invoice, InvoiceItem, Profile, Settings } from '@/types/models'
 
 /** Chemin relatif au bucket (sans slash initial ni préfixe de bucket). */
 function normalizeInvoicePdfPath(raw: string | null | undefined): string | null {
@@ -40,21 +41,25 @@ function openPdfBlobInBrowser(blob: Blob, downloadBaseName: string) {
 }
 
 async function rebuildInvoicePdfPath(inv: Invoice, userId: string, t: TFunction): Promise<string | null> {
-  const [{ data: profile, error: pErr }, { data: client, error: cErr }, { data: items, error: iErr }] =
+  const [{ data: profile, error: pErr }, { data: settings, error: sErr }, { data: client, error: cErr }, { data: items, error: iErr }] =
     await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.from('settings').select('*').eq('user_id', userId).single(),
       supabase.from('clients').select('*').eq('id', inv.client_id).single(),
       supabase.from('invoice_items').select('*').eq('invoice_id', inv.id).order('created_at'),
     ])
-  if (pErr || cErr || iErr || !profile || !client || !items?.length) {
+  if (pErr || sErr || cErr || iErr || !profile || !settings || !client || !items?.length) {
     toast.error(t('invoices.pdfRebuildError'))
     return null
   }
+  const logoBytes = await fetchCompanyLogoBytes(supabase, userId, (profile as Profile).logo_path)
   const pdfBytes = await buildInvoicePdf({
     profile: profile as Profile,
     client: client as Client,
     invoice: inv,
     items: items as InvoiceItem[],
+    settings: settings as Settings,
+    logoBytes,
   })
   const path = `${userId}/${inv.id}.pdf`
   const { error: upErr } = await supabase.storage.from('invoices-pdf').upload(path, pdfBytes, {

@@ -9,9 +9,16 @@ export type Profile = {
   company_name: string | null
   company_address: string | null
   company_tax_id: string | null
+  company_email: string | null
+  company_phone: string | null
+  brand_primary: string | null
+  brand_secondary: string | null
   iban: string | null
+  bic: string | null
   logo_path: string | null
   default_locale: string
+  /** Mention TVA si taux 0 % (sinon texte légal autoliquidation B2B par défaut du PDF). */
+  vat_zero_note: string | null
 }
 
 export type Client = {
@@ -70,6 +77,8 @@ export type Invoice = {
   subtotal_ht: number
   vat_amount: number
   total_ttc: number
+  pdf_locale?: string
+  pdf_template?: string
 }
 
 export type BillingUnit = 'day' | 'month' | 'hour' | 'flat'
@@ -95,6 +104,10 @@ export type Settings = {
   invoice_prefix: string
   next_invoice_sequence: number
   reminder_enabled: boolean
+  invoice_template?: string
+  invoice_payment_terms?: string | null
+  invoice_late_penalty?: string | null
+  invoice_sepa_qr?: boolean
 }
 
 export type ParsedTimesheetRow = {
