@@ -126,7 +126,7 @@ export function buildDashboardMetrics(
   let latePaymentCount = 0
   let latePaymentAmountTtc = 0
   for (const inv of invoices) {
-    if (inv.status === 'paid') continue
+    if (inv.status === 'paid' || inv.status === 'archived') continue
     const due = inv.due_date
     if (!due || due >= today) continue
     latePaymentCount += 1

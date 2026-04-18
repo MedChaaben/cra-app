@@ -31,6 +31,7 @@ import {
 } from '@/lib/invoiceCraAggregate'
 import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
+import { formatInvoiceNumberFromSettings } from '@/lib/invoiceNumber'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
 import type { Client, Invoice, InvoiceItem, Profile, Settings, Timesheet, TimesheetEntry } from '@/types/models'
@@ -224,9 +225,8 @@ export default function InvoiceNewPage() {
       return
     }
 
-    const prefix = settings.data.invoice_prefix as string
-    const seq = settings.data.next_invoice_sequence as number
-    const invoiceNumber = `${prefix}-${String(seq).padStart(4, '0')}`
+    const seq = Math.max(1, Math.floor(Number(settings.data.next_invoice_sequence) || 1))
+    const invoiceNumber = formatInvoiceNumberFromSettings(settings.data as Settings)
 
     const draftItems = values.lines.map((l) => {
       const total_ht = Math.round(l.quantity * l.unitPrice * 100) / 100
@@ -257,7 +257,7 @@ export default function InvoiceNewPage() {
         pdf_template: values.pdfTemplate,
         vat_rate: values.vatRate,
         notes: values.notes || null,
-        status: 'draft',
+        status: 'pending',
         subtotal_ht,
         vat_amount,
         total_ttc,

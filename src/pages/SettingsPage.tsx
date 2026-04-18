@@ -1,14 +1,22 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useMemo, useState } from 'react'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -20,34 +28,41 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
+import { formatInvoiceNumberFromSettings } from '@/lib/invoiceNumber'
 import { supabase } from '@/lib/supabase/client'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
 import type { Profile, Settings } from '@/types/models'
 
-const schema = z.object({
-  full_name: z.string().optional(),
-  company_name: z.string().optional(),
-  company_address: z.string().optional(),
-  company_tax_id: z.string().optional(),
-  company_email: z.string().optional(),
-  company_phone: z.string().optional(),
-  brand_primary: z.string().optional(),
-  brand_secondary: z.string().optional(),
-  iban: z.string().optional(),
-  bic: z.string().optional(),
-  vat_zero_note: z.string().optional(),
-  invoice_template: z.enum(INVOICE_PDF_TEMPLATE_IDS as unknown as [InvoicePdfTemplateId, ...InvoicePdfTemplateId[]]),
-  invoice_payment_terms: z.string().optional(),
-  invoice_late_penalty: z.string().optional(),
-  invoice_sepa_qr: z.boolean(),
-})
+function createSettingsSchema(t: (k: string) => string) {
+  return z.object({
+    full_name: z.string().optional(),
+    company_name: z.string().optional(),
+    company_address: z.string().optional(),
+    company_tax_id: z.string().optional(),
+    company_email: z.string().optional(),
+    company_phone: z.string().optional(),
+    brand_primary: z.string().optional(),
+    brand_secondary: z.string().optional(),
+    iban: z.string().optional(),
+    bic: z.string().optional(),
+    vat_zero_note: z.string().optional(),
+    invoice_prefix: z.string().trim().min(1, t('settings.invoicePrefixRequired')),
+    next_invoice_sequence: z.number().int().min(1).max(999_999),
+    invoice_template: z.enum(INVOICE_PDF_TEMPLATE_IDS as unknown as [InvoicePdfTemplateId, ...InvoicePdfTemplateId[]]),
+    invoice_payment_terms: z.string().optional(),
+    invoice_late_penalty: z.string().optional(),
+    invoice_sepa_qr: z.boolean(),
+  })
+}
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.infer<ReturnType<typeof createSettingsSchema>>
 
 export default function SettingsPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const qc = useQueryClient()
+  const schema = useMemo(() => createSettingsSchema(t), [t])
+  const [resetSeqOpen, setResetSeqOpen] = useState(false)
 
   const profile = useQuery({
     queryKey: ['profile', user?.id],
@@ -70,14 +85,23 @@ export default function SettingsPage() {
   })
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
+      invoice_prefix: 'FAC',
+      next_invoice_sequence: 1,
       invoice_template: 'corporate',
       invoice_sepa_qr: true,
       invoice_payment_terms: '',
       invoice_late_penalty: '',
     },
   })
+
+  const watchedPrefix = useWatch({ control: form.control, name: 'invoice_prefix' }) ?? 'FAC'
+  const watchedSeq = useWatch({ control: form.control, name: 'next_invoice_sequence' }) ?? 1
+  const numberPreview = formatInvoiceNumberFromSettings({
+    invoice_prefix: watchedPrefix,
+    next_invoice_sequence: watchedSeq,
+  } as Pick<Settings, 'invoice_prefix' | 'next_invoice_sequence'>)
 
   useEffect(() => {
     if (!profile.data || !settings.data) return
@@ -93,6 +117,8 @@ export default function SettingsPage() {
       iban: profile.data.iban ?? '',
       bic: profile.data.bic ?? '',
       vat_zero_note: profile.data.vat_zero_note ?? '',
+      invoice_prefix: settings.data.invoice_prefix ?? 'FAC',
+      next_invoice_sequence: Math.max(1, Math.floor(Number(settings.data.next_invoice_sequence) || 1)),
       invoice_template: (INVOICE_PDF_TEMPLATE_IDS as readonly string[]).includes(String(settings.data.invoice_template))
         ? (settings.data.invoice_template as FormValues['invoice_template'])
         : 'corporate',
@@ -125,6 +151,8 @@ export default function SettingsPage() {
       const { error: sErr } = await supabase
         .from('settings')
         .update({
+          invoice_prefix: values.invoice_prefix.trim(),
+          next_invoice_sequence: values.next_invoice_sequence,
           invoice_template: values.invoice_template,
           invoice_payment_terms: values.invoice_payment_terms?.trim() || null,
           invoice_late_penalty: values.invoice_late_penalty?.trim() || null,
@@ -214,6 +242,39 @@ export default function SettingsPage() {
 
         <Card className="border-border/80">
           <CardHeader>
+            <CardTitle>{t('settings.invoiceNumberTitle')}</CardTitle>
+            <CardDescription>{t('settings.invoiceNumberDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="invoice_prefix">{t('settings.fieldInvoicePrefix')}</Label>
+                <Input id="invoice_prefix" {...form.register('invoice_prefix')} autoComplete="off" />
+                {form.formState.errors.invoice_prefix ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.invoice_prefix.message}</p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="next_invoice_sequence">{t('settings.fieldNextInvoiceSequence')}</Label>
+                <Input id="next_invoice_sequence" type="number" min={1} {...form.register('next_invoice_sequence', { valueAsNumber: true })} />
+                {form.formState.errors.next_invoice_sequence ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.next_invoice_sequence.message}</p>
+                ) : null}
+              </div>
+            </div>
+            <p className="rounded-md border border-border/80 bg-muted/30 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">{t('settings.invoiceNumberPreview')}</span>{' '}
+              <span className="font-mono font-medium">{numberPreview}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">{t('settings.invoiceNumberPatternHint')}</p>
+            <Button type="button" variant="outline" onClick={() => setResetSeqOpen(true)}>
+              {t('settings.resetSequenceCta')}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/80">
+          <CardHeader>
             <CardTitle>{t('settings.invoicePdfTitle')}</CardTitle>
             <CardDescription>{t('settings.invoicePdfDesc')}</CardDescription>
           </CardHeader>
@@ -264,6 +325,30 @@ export default function SettingsPage() {
           {t('settings.save')}
         </Button>
       </form>
+
+      <Dialog open={resetSeqOpen} onOpenChange={setResetSeqOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings.resetSequenceTitle')}</DialogTitle>
+            <DialogDescription>{t('settings.resetSequenceDesc')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setResetSeqOpen(false)}>
+              {t('settings.resetSequenceCancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                form.setValue('next_invoice_sequence', 1, { shouldDirty: true })
+                setResetSeqOpen(false)
+                toast.success(t('settings.resetSequenceApplied'))
+              }}
+            >
+              {t('settings.resetSequenceConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

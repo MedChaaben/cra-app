@@ -1,92 +1,28 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileText, Loader2, Plus } from 'lucide-react'
+import { FileText, Loader2, Pencil, Plus } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
-import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
-import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
-import type { Client, Invoice, InvoiceItem, Profile, Settings } from '@/types/models'
+import {
+  downloadInvoicePdfFromStorage,
+  normalizeInvoicePdfPath,
+  openPdfBlobInBrowser,
+  rebuildInvoicePdfPath,
+} from '@/services/invoices/invoicePdfStorage'
+import type { Invoice } from '@/types/models'
 
-/** Chemin relatif au bucket (sans slash initial ni préfixe de bucket). */
-function normalizeInvoicePdfPath(raw: string | null | undefined): string | null {
-  if (raw == null) return null
-  const s = String(raw).trim().replace(/^\/+/, '')
-  if (!s) return null
-  return s.replace(/^invoices-pdf\//i, '')
-}
-
-function openPdfBlobInBrowser(blob: Blob, downloadBaseName: string) {
-  const safeName = downloadBaseName.replace(/[/\\?%*:|"<>]/g, '-').trim() || 'facture'
-  const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'noopener,noreferrer')
-  const popupLikelyBlocked = win == null || win.closed
-  if (popupLikelyBlocked) {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${safeName}.pdf`
-    a.rel = 'noopener noreferrer'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  }
-  window.setTimeout(() => URL.revokeObjectURL(url), 180_000)
-}
-
-async function rebuildInvoicePdfPath(inv: Invoice, userId: string, t: TFunction): Promise<string | null> {
-  const [{ data: profile, error: pErr }, { data: settings, error: sErr }, { data: client, error: cErr }, { data: items, error: iErr }] =
-    await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).single(),
-      supabase.from('settings').select('*').eq('user_id', userId).single(),
-      supabase.from('clients').select('*').eq('id', inv.client_id).single(),
-      supabase.from('invoice_items').select('*').eq('invoice_id', inv.id).order('created_at'),
-    ])
-  if (pErr || sErr || cErr || iErr || !profile || !settings || !client || !items?.length) {
-    toast.error(t('invoices.pdfRebuildError'))
-    return null
-  }
-  const logoBytes = await fetchCompanyLogoBytes(supabase, userId, (profile as Profile).logo_path)
-  const pdfBytes = await buildInvoicePdf({
-    profile: profile as Profile,
-    client: client as Client,
-    invoice: inv,
-    items: items as InvoiceItem[],
-    settings: settings as Settings,
-    logoBytes,
-  })
-  const path = `${userId}/${inv.id}.pdf`
-  const { error: upErr } = await supabase.storage.from('invoices-pdf').upload(path, pdfBytes, {
-    contentType: 'application/pdf',
-    upsert: true,
-  })
-  if (upErr) {
-    toast.error(t('invoices.pdfUploadError'))
-    return null
-  }
-  const { error: metaErr } = await supabase.from('invoices').update({ pdf_path: path }).eq('id', inv.id)
-  if (metaErr) {
-    toast.error(t('invoices.pdfMetaError'))
-    return null
-  }
-  return path
-}
-
-async function downloadInvoicePdfFromStorage(path: string): Promise<{ blob: Blob } | { error: Error }> {
-  const { data, error } = await supabase.storage.from('invoices-pdf').download(path)
-  if (error) {
-    return { error: new Error(error.message) }
-  }
-  if (!data || data.size === 0) {
-    return { error: new Error('empty file') }
-  }
-  return { blob: data }
+function invoiceStatusBadgeVariant(s: string): 'default' | 'secondary' | 'outline' {
+  if (s === 'paid') return 'default'
+  if (s === 'archived') return 'outline'
+  return 'secondary'
 }
 
 export default function InvoicesPage() {
@@ -119,7 +55,6 @@ export default function InvoicesPage() {
         let err = await tryOpen(path)
         if (!err) return
 
-        // Fichier absent ou chemin obsolète : régénère puis réessaie une fois.
         const rebuilt = await rebuildInvoicePdfPath(inv, user.id, t)
         if (rebuilt) {
           await qc.invalidateQueries({ queryKey: ['invoices-all', user.id] })
@@ -183,12 +118,23 @@ export default function InvoicesPage() {
                 className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{inv.invoice_number}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{inv.invoice_number}</p>
+                    <Badge variant={invoiceStatusBadgeVariant(inv.status)} className="text-xs font-normal">
+                      {t(`invoices.status.${inv.status}`)}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {inv.issue_date} · {inv.status}
+                    {inv.issue_date} · {inv.currency}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <Button asChild variant="secondary" size="sm">
+                    <Link to={`/invoices/${inv.id}`}>
+                      <Pencil className="h-4 w-4" />
+                      {t('invoices.edit')}
+                    </Link>
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"

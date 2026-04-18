@@ -14,6 +14,7 @@ const ImportPage = lazy(() => import('@/pages/ImportPage'))
 const TimesheetEditorPage = lazy(() => import('@/pages/TimesheetEditorPage'))
 const InvoicesPage = lazy(() => import('@/pages/InvoicesPage'))
 const InvoiceNewPage = lazy(() => import('@/pages/InvoiceNewPage'))
+const InvoiceEditPage = lazy(() => import('@/pages/InvoiceEditPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 
@@ -61,6 +62,7 @@ export function AppRouter() {
             <Route path="clients" element={<ClientsPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="invoices/new" element={<InvoiceNewPage />} />
+            <Route path="invoices/:id" element={<InvoiceEditPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

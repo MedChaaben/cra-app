@@ -268,7 +268,7 @@ export async function insertBulkConsultingDemo(supabase: SupabaseClient, userId:
     const dueDate = toIso(due.getUTCFullYear(), due.getUTCMonth() + 1, due.getUTCDate())
     const vatAmount = Math.round(totalHt * (VAT / 100) * 100) / 100
     const totalTtc = Math.round((totalHt + vatAmount) * 100) / 100
-    const status = i >= monthTotals.length - 3 ? 'sent' : 'paid'
+    const status = i >= monthTotals.length - 3 ? 'pending' : 'paid'
 
     invoiceRows.push({
       user_id: userId,

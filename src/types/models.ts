@@ -1,5 +1,5 @@
 export type TimesheetStatus = 'draft' | 'parsed' | 'validated'
-export type InvoiceStatus = 'draft' | 'sent' | 'paid'
+export type InvoiceStatus = 'pending' | 'paid' | 'archived'
 
 export type Profile = {
   id: string
