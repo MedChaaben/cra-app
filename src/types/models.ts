@@ -72,6 +72,8 @@ export type Invoice = {
   total_ttc: number
 }
 
+export type BillingUnit = 'day' | 'month' | 'hour' | 'flat'
+
 export type InvoiceItem = {
   id: string
   invoice_id: string
@@ -80,6 +82,7 @@ export type InvoiceItem = {
   quantity: number
   unit_price: number
   total_ht: number
+  billing_unit: BillingUnit
   timesheet_entry_id: string | null
 }
 

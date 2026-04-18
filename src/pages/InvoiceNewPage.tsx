@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -19,20 +19,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
+import {
+  aggregateTimesheetDays,
+  aggregateTimesheetMoney,
+  BILLING_UNITS,
+  suggestLineFromCra,
+} from '@/lib/invoiceCraAggregate'
 import { supabase } from '@/lib/supabase/client'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
-import type { Client, Invoice, InvoiceItem, Profile, TimesheetEntry } from '@/types/models'
+import type { BillingUnit, Client, Invoice, InvoiceItem, Profile, Timesheet } from '@/types/models'
 
-const schema = z.object({
-  clientId: z.string().min(1, 'Sélectionnez un client'),
-  vatRate: z.number().min(0).max(100),
-  notes: z.string().optional(),
-  dueDate: z.string().optional(),
+function useInvoiceFormSchema(t: (k: string) => string) {
+  const lineSchema = z.object({
+    description: z.string().trim().min(1, t('invoices.invoiceForm.errDescription')),
+    quantity: z.coerce.number().refine((n) => Number.isFinite(n) && n > 0, t('invoices.invoiceForm.errQuantity')),
+    unitPrice: z.coerce.number().refine((n) => Number.isFinite(n) && n >= 0, t('invoices.invoiceForm.errPrice')),
+    billingUnit: z.enum(['day', 'month', 'hour', 'flat']),
+  })
+
+  return z
+    .object({
+      clientId: z.string().min(1, t('invoices.invoiceForm.errClient')),
+      vatRate: z.number().min(0).max(100),
+      notes: z.string().optional(),
+      dueDate: z.string().optional(),
+      lines: z.array(lineSchema).min(1),
+    })
+    .superRefine((data, ctx) => {
+      const sum = data.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)
+      if (sum < 0.01) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('invoices.invoiceForm.errLinesTotal'),
+          path: ['lines'],
+        })
+      }
+    })
+}
+
+type FormValues = {
+  clientId: string
+  vatRate: number
+  notes: string
+  dueDate: string
+  lines: { description: string; quantity: number; unitPrice: number; billingUnit: BillingUnit }[]
+}
+
+const emptyLine = (): FormValues['lines'][number] => ({
+  description: '',
+  quantity: 1,
+  unitPrice: 0,
+  billingUnit: 'day',
 })
-
-type FormValues = z.infer<typeof schema>
 
 export default function InvoiceNewPage() {
   const { t } = useTranslation()
@@ -41,6 +82,9 @@ export default function InvoiceNewPage() {
   const [params] = useSearchParams()
   const timesheetId = params.get('timesheetId')
   const qc = useQueryClient()
+  const craImportDone = useRef(false)
+
+  const formSchema = useMemo(() => useInvoiceFormSchema(t), [t])
 
   const clients = useQuery({
     queryKey: ['clients', user?.id],
@@ -49,6 +93,16 @@ export default function InvoiceNewPage() {
       const { data, error } = await supabase.from('clients').select('*').order('name')
       if (error) throw error
       return (data ?? []) as Client[]
+    },
+  })
+
+  const timesheet = useQuery({
+    queryKey: ['timesheet', timesheetId],
+    enabled: Boolean(timesheetId && user?.id),
+    queryFn: async (): Promise<Timesheet> => {
+      const { data, error } = await supabase.from('timesheets').select('*').eq('id', timesheetId!).single()
+      if (error) throw error
+      return data as Timesheet
     },
   })
 
@@ -75,7 +129,7 @@ export default function InvoiceNewPage() {
   const entries = useQuery({
     queryKey: ['timesheet-entries', timesheetId],
     enabled: Boolean(timesheetId),
-    queryFn: async (): Promise<TimesheetEntry[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('timesheet_entries')
         .select('*')
@@ -87,9 +141,24 @@ export default function InvoiceNewPage() {
   })
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { vatRate: 20, notes: '', dueDate: '', clientId: '' },
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      vatRate: 20,
+      notes: '',
+      dueDate: '',
+      clientId: '',
+      lines: [emptyLine()],
+    },
   })
+
+  const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'lines' })
+
+  const watchedLines = useWatch({ control: form.control, name: 'lines' })
+  const watchedVat = useWatch({ control: form.control, name: 'vatRate' }) ?? 20
+
+  const subtotalHt = (watchedLines ?? []).reduce((s, l) => s + (Number(l?.quantity) || 0) * (Number(l?.unitPrice) || 0), 0)
+  const vatAmount = (subtotalHt * (Number(watchedVat) || 0)) / 100
+  const totalTtc = subtotalHt + vatAmount
 
   useEffect(() => {
     const first = clients.data?.[0]?.id
@@ -97,6 +166,30 @@ export default function InvoiceNewPage() {
       form.setValue('clientId', first)
     }
   }, [clients.data, form])
+
+  useEffect(() => {
+    if (craImportDone.current) return
+    if (!timesheetId || !timesheet.data || !entries.data?.length) return
+    const line = suggestLineFromCra(entries.data, {
+      timesheetTitle: timesheet.data.title,
+      monthYear: timesheet.data.month_year,
+    })
+    replace([line])
+    craImportDone.current = true
+  }, [timesheetId, timesheet.data, entries.data, replace])
+
+  const importFromCra = useCallback(() => {
+    if (!entries.data?.length || !timesheet.data) {
+      toast.error(t('invoices.invoiceForm.craEmpty'))
+      return
+    }
+    const line = suggestLineFromCra(entries.data, {
+      timesheetTitle: timesheet.data.title,
+      monthYear: timesheet.data.month_year,
+    })
+    replace([line])
+    toast.success(t('invoices.invoiceForm.craImported'))
+  }, [entries.data, timesheet.data, replace, t])
 
   const busy = form.formState.isSubmitting
 
@@ -115,25 +208,17 @@ export default function InvoiceNewPage() {
     const seq = settings.data.next_invoice_sequence as number
     const invoiceNumber = `${prefix}-${String(seq).padStart(4, '0')}`
 
-    const sourceEntries = entries.data ?? []
-    const draftItems = sourceEntries.map((e) => {
-      const qty = Number(e.hours) || 0
-      const unit = Number(e.daily_rate) || 0
-      const total_ht = qty * unit
-      const desc = [e.work_date, e.project_name, e.client_name].filter(Boolean).join(' · ') || 'Prestation'
+    const draftItems = values.lines.map((l) => {
+      const total_ht = Math.round(l.quantity * l.unitPrice * 100) / 100
       return {
-        description: desc,
-        quantity: qty,
-        unit_price: unit,
+        description: l.description.trim(),
+        quantity: l.quantity,
+        unit_price: l.unitPrice,
         total_ht,
-        timesheet_entry_id: e.id,
+        billing_unit: l.billingUnit,
+        timesheet_entry_id: null as string | null,
       }
     })
-
-    if (!draftItems.length) {
-      toast.error('Aucune ligne à facturer — importez une feuille ou ajoutez des lignes.')
-      return
-    }
 
     const subtotal_ht = draftItems.reduce((a, i) => a + i.total_ht, 0)
     const vat_amount = (subtotal_ht * values.vatRate) / 100
@@ -169,23 +254,18 @@ export default function InvoiceNewPage() {
         quantity: i.quantity,
         unit_price: i.unit_price,
         total_ht: i.total_ht,
+        billing_unit: i.billing_unit,
         timesheet_entry_id: i.timesheet_entry_id,
-      }))
+      })),
     )
     if (itErr) {
       toast.error(itErr.message)
       return
     }
 
-    await supabase
-      .from('settings')
-      .update({ next_invoice_sequence: seq + 1 })
-      .eq('user_id', user.id)
+    await supabase.from('settings').update({ next_invoice_sequence: seq + 1 }).eq('user_id', user.id)
 
-    const { data: savedItems, error: loadErr } = await supabase
-      .from('invoice_items')
-      .select('*')
-      .eq('invoice_id', inv.id)
+    const { data: savedItems, error: loadErr } = await supabase.from('invoice_items').select('*').eq('invoice_id', inv.id)
     if (loadErr || !savedItems) {
       toast.error(loadErr?.message ?? 'Erreur chargement lignes')
       return
@@ -241,27 +321,32 @@ export default function InvoiceNewPage() {
     )
   }
 
+  const craDays = entries.data?.length ? aggregateTimesheetDays(entries.data) : 0
+  const craHt = entries.data?.length ? aggregateTimesheetMoney(entries.data) : 0
+
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-8 pb-16">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{t('invoices.new')}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          PDF A4 professionnel, TVA configurable, numérotation automatique.
-        </p>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('invoices.invoiceForm.subtitle')}</p>
       </div>
 
-      <Card className="border-border/80">
-        <CardContent className="pt-6">
-          <form className="space-y-4" onSubmit={onSubmit}>
+      <form className="space-y-8" onSubmit={onSubmit}>
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg">{t('invoices.invoiceForm.clientSection')}</CardTitle>
+            <CardDescription>{t('invoices.invoiceForm.clientHint')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Client</Label>
+              <Label>{t('invoices.invoiceForm.client')}</Label>
               <Controller
                 control={form.control}
                 name="clientId"
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un client" />
+                    <SelectTrigger className="h-11 bg-background">
+                      <SelectValue placeholder={t('invoices.invoiceForm.clientPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {clients.data.map((c) => (
@@ -277,29 +362,185 @@ export default function InvoiceNewPage() {
                 <p className="text-xs text-destructive">{form.formState.errors.clientId.message}</p>
               ) : null}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vat">TVA (%)</Label>
-              <Input id="vat" type="number" step="0.1" {...form.register('vatRate', { valueAsNumber: true })} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg">{t('invoices.invoiceForm.linesSection')}</CardTitle>
+              <CardDescription>{t('invoices.invoiceForm.linesHint')}</CardDescription>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="due">Échéance (optionnel)</Label>
-              <Input id="due" type="date" {...form.register('dueDate')} />
+            {timesheetId && entries.data?.length ? (
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <p className="text-right text-xs text-muted-foreground">
+                  {t('invoices.invoiceForm.craSummary', {
+                    days: craDays.toLocaleString('fr-FR', { maximumFractionDigits: 2 }),
+                    total: new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(craHt),
+                  })}
+                </p>
+                <Button type="button" variant="secondary" className="shrink-0" onClick={importFromCra}>
+                  {t('invoices.invoiceForm.craImport')}
+                </Button>
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm transition-colors hover:bg-muted/30"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('invoices.invoiceForm.lineLabel', { n: index + 1 })}
+                    </span>
+                    {fields.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => remove(index)}
+                        aria-label={t('invoices.invoiceForm.removeLine')}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-12">
+                    <div className="sm:col-span-12">
+                      <Label className="text-xs">{t('invoices.invoiceForm.description')}</Label>
+                      <Textarea
+                        rows={2}
+                        className="mt-1.5 resize-none bg-background"
+                        {...form.register(`lines.${index}.description`)}
+                      />
+                      {form.formState.errors.lines?.[index]?.description ? (
+                        <p className="mt-1 text-xs text-destructive">
+                          {form.formState.errors.lines[index]?.description?.message}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:col-span-5">
+                      <div>
+                        <Label className="text-xs">{t('invoices.invoiceForm.quantity')}</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="mt-1.5 h-10 bg-background"
+                          {...form.register(`lines.${index}.quantity`, { valueAsNumber: true })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">{t('invoices.invoiceForm.unit')}</Label>
+                        <Controller
+                          control={form.control}
+                          name={`lines.${index}.billingUnit`}
+                          render={({ field: f }) => (
+                            <Select value={f.value} onValueChange={f.onChange}>
+                              <SelectTrigger className="mt-1.5 h-10 bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {BILLING_UNITS.map((u) => (
+                                  <SelectItem key={u} value={u}>
+                                    {t(`invoices.units.${u}`)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-4">
+                      <Label className="text-xs">{t('invoices.invoiceForm.unitPrice')}</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        className="mt-1.5 h-10 bg-background"
+                        {...form.register(`lines.${index}.unitPrice`, { valueAsNumber: true })}
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end sm:col-span-3">
+                      <Label className="text-xs">{t('invoices.invoiceForm.lineTotal')}</Label>
+                      <p className="mt-1.5 rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-right text-sm font-semibold tabular-nums">
+                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
+                          (Number(watchedLines?.[index]?.quantity) || 0) * (Number(watchedLines?.[index]?.unitPrice) || 0),
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" rows={3} {...form.register('notes')} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Lignes : {entries.data?.length ?? 0} depuis la feuille liée.
-              {!timesheetId ? ' Ouvrez cette page depuis l’éditeur de feuille pour préremplir les lignes.' : null}
-            </p>
-            <Button type="submit" className="w-full" disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Générer la facture PDF
+            {form.formState.errors.lines && typeof form.formState.errors.lines.message === 'string' ? (
+              <p className="text-xs text-destructive">{form.formState.errors.lines.message}</p>
+            ) : null}
+            <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => append(emptyLine())}>
+              <Plus className="h-4 w-4" />
+              {t('invoices.invoiceForm.addLine')}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="border-border/80 shadow-sm lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="text-lg">{t('invoices.invoiceForm.optionsSection')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="vat">{t('invoices.invoiceForm.vat')}</Label>
+                  <Input id="vat" type="number" step="0.1" className="h-10 bg-background" {...form.register('vatRate', { valueAsNumber: true })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="due">{t('invoices.invoiceForm.due')}</Label>
+                  <Input id="due" type="date" className="h-10 bg-background" {...form.register('dueDate')} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">{t('invoices.invoiceForm.notes')}</Label>
+                <Textarea id="notes" rows={3} className="resize-none bg-background" {...form.register('notes')} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-500/30 bg-gradient-to-b from-amber-500/[0.07] to-transparent shadow-sm lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{t('invoices.invoiceForm.summary')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('invoices.invoiceForm.subtotal')}</span>
+                <span className="font-medium tabular-nums">
+                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(subtotalHt)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('invoices.invoiceForm.vatPreview', { rate: watchedVat })}</span>
+                <span className="tabular-nums">{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(vatAmount)}</span>
+              </div>
+              <Separator className="bg-amber-500/20" />
+              <div className="flex justify-between gap-4 text-base font-semibold">
+                <span>{t('invoices.invoiceForm.totalTtc')}</span>
+                <span className="tabular-nums text-amber-700 dark:text-amber-400">
+                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalTtc)}
+                </span>
+              </div>
+              <Button type="submit" className="mt-4 w-full" size="lg" disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {t('invoices.invoiceForm.generate')}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </form>
     </div>
   )
 }

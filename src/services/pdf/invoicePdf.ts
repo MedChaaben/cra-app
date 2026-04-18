@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
-import type { Client, Invoice, InvoiceItem, Profile } from '@/types/models'
+import type { BillingUnit, Client, Invoice, InvoiceItem, Profile } from '@/types/models'
 
 export type InvoicePdfInput = {
   profile: Profile
@@ -63,6 +63,22 @@ function formatQty(amount: number): string {
   )
 }
 
+function pdfBillingUnitLabel(unit: BillingUnit | string | undefined): string {
+  const u = (unit ?? 'day') as BillingUnit
+  switch (u) {
+    case 'day':
+      return 'jour(s)'
+    case 'month':
+      return 'mois'
+    case 'hour':
+      return 'h'
+    case 'flat':
+      return 'forfait'
+    default:
+      return ''
+  }
+}
+
 /** Découpe simple sur 2 lignes max pour la colonne description. */
 function wrapDescription(text: string, maxChars: number, maxLines: number): string[] {
   const words = sanitizePdfText(text).split(/\s+/).filter(Boolean)
@@ -96,16 +112,18 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold)
   const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique)
 
-  const M = 44
+  const M = 36
   const xDesc = M
-  const xJours = 292
-  const xTaux = 362
-  const xMont = 448
+  const xQty = 232
+  const xUnit = 278
+  const xPU = 338
+  const xMont = 412
   const xRight = width - M
 
-  const wDesc = xJours - xDesc
-  const wJours = xTaux - xJours
-  const wTaux = xMont - xTaux
+  const wDesc = xQty - xDesc
+  const wQty = xUnit - xQty
+  const wUnit = xPU - xUnit
+  const wPU = xMont - xPU
   const wMont = xRight - xMont
 
   const drawText = (
@@ -203,7 +221,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
 
   /* ----- Tableau ----- */
   const rowH = 22
-  const minBodyRows = 7
+  const minBodyRows = 6
   const bodyRows = Math.max(input.items.length, minBodyRows)
 
   const drawCellBg = (x: number, yBottom: number, w: number, fill: ReturnType<typeof rgb>) => {
@@ -221,15 +239,17 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   // Ligne d'en-tête tableau
   const headerBottom = y - rowH
   drawCellBg(xDesc, headerBottom, wDesc, grayFillHeader)
-  drawCellBg(xJours, headerBottom, wJours, grayFillHeader)
-  drawCellBg(xTaux, headerBottom, wTaux, grayFillHeader)
+  drawCellBg(xQty, headerBottom, wQty, grayFillHeader)
+  drawCellBg(xUnit, headerBottom, wUnit, grayFillHeader)
+  drawCellBg(xPU, headerBottom, wPU, grayFillHeader)
   drawCellBg(xMont, headerBottom, wMont, grayMontantCol)
 
   const textPadY = headerBottom + 7
-  drawText('DESCRIPTION', xDesc + 4, textPadY, 8, { bold: true })
-  drawText('JOURS', xJours + 4, textPadY, 8, { bold: true })
-  drawText('TAUX', xTaux + 4, textPadY, 8, { bold: true })
-  drawText('MONTANT', xMont + 4, textPadY, 8, { bold: true })
+  drawText('DESCRIPTION', xDesc + 3, textPadY, 7, { bold: true })
+  drawText('QTE', xQty + 3, textPadY, 7, { bold: true })
+  drawText('UNITE', xUnit + 3, textPadY, 7, { bold: true })
+  drawText('PU HT', xPU + 3, textPadY, 7, { bold: true })
+  drawText('MONTANT', xMont + 3, textPadY, 7, { bold: true })
 
   y = headerBottom
 
@@ -239,21 +259,29 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     const zebra = i % 2 === 1 ? grayZebra : rgb(1, 1, 1)
 
     drawCellBg(xDesc, rowBottom, wDesc, zebra)
-    drawCellBg(xJours, rowBottom, wJours, zebra)
-    drawCellBg(xTaux, rowBottom, wTaux, zebra)
+    drawCellBg(xQty, rowBottom, wQty, zebra)
+    drawCellBg(xUnit, rowBottom, wUnit, zebra)
+    drawCellBg(xPU, rowBottom, wPU, zebra)
     drawCellBg(xMont, rowBottom, wMont, grayMontantCol)
 
     if (item) {
-      const descLines = wrapDescription(item.description, 46, 2)
+      const unit = item.billing_unit ?? 'day'
+      const descLines = wrapDescription(item.description, 36, 2)
       if (descLines.length > 1 && descLines[1]) {
-        drawText(descLines[0], xDesc + 4, rowBottom + 12, 8)
-        drawText(descLines[1], xDesc + 4, rowBottom + 4, 8)
+        drawText(descLines[0], xDesc + 3, rowBottom + 12, 7)
+        drawText(descLines[1], xDesc + 3, rowBottom + 4, 7)
       } else {
-        drawText(descLines[0] ?? '', xDesc + 4, rowBottom + 7, 8)
+        drawText(descLines[0] ?? '', xDesc + 3, rowBottom + 7, 7)
       }
-      drawText(formatQty(Number(item.quantity)), xJours + 4, rowBottom + 7, 8)
-      drawText(formatMoney(Number(item.unit_price), input.invoice.currency), xTaux + 4, rowBottom + 7, 8)
-      drawRight(formatMoney(Number(item.total_ht), input.invoice.currency), xRight - 4, rowBottom + 7, 8)
+      drawText(
+        unit === 'flat' ? '-' : formatQty(Number(item.quantity)),
+        xQty + 3,
+        rowBottom + 7,
+        7,
+      )
+      drawText(pdfBillingUnitLabel(unit), xUnit + 3, rowBottom + 7, 7)
+      drawText(formatMoney(Number(item.unit_price), input.invoice.currency), xPU + 3, rowBottom + 7, 7)
+      drawRight(formatMoney(Number(item.total_ht), input.invoice.currency), xRight - 3, rowBottom + 7, 7)
     }
     y = rowBottom
   }
@@ -261,13 +289,13 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   y -= 20
 
   /* ----- Totaux (alignés colonne montant) ----- */
-  const labelX = xTaux - 8
+  const labelX = xPU - 8
   const vatLabel =
     Number(input.invoice.vat_rate) === 0
       ? '0% Autoliquidation TVA'
       : `${sanitizePdfText(String(input.invoice.vat_rate))}%`
   let vatSize = 9
-  while (font.widthOfTextAtSize(vatLabel, vatSize) > wMont + wTaux - 8 && vatSize > 6) {
+  while (font.widthOfTextAtSize(vatLabel, vatSize) > wMont + wPU - 8 && vatSize > 6) {
     vatSize -= 0.5
   }
 
