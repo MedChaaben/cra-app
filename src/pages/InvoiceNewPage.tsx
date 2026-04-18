@@ -226,14 +226,15 @@ export default function InvoiceNewPage() {
     return (
       <Card className="max-w-lg border-amber-500/40 bg-amber-500/5">
         <CardHeader>
-          <CardTitle>Client requis</CardTitle>
-          <CardDescription>
-            Créez au moins un client (données démo depuis Réglages) avant de générer une facture.
-          </CardDescription>
+          <CardTitle>{t('invoices.clientRequiredTitle')}</CardTitle>
+          <CardDescription>{t('invoices.clientRequiredDesc')}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link to="/clients">{t('invoices.goClients')}</Link>
+          </Button>
           <Button asChild variant="outline">
-            <Link to="/settings">Réglages</Link>
+            <Link to="/settings">{t('nav.settings')}</Link>
           </Button>
         </CardContent>
       </Card>

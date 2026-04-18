@@ -9,8 +9,28 @@ export type InvoicePdfInput = {
   items: InvoiceItem[]
 }
 
+/**
+ * Helvetica standard (WinAnsi) ne peut pas encoder certains caractères Unicode
+ * (ex. U+202F espace insécable étroit utilisé par fr-FR pour les montants).
+ */
+function sanitizePdfText(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\u202f/g, ' ')
+    .replace(/\u2007/g, ' ')
+    .replace(/\u2008/g, ' ')
+    .replace(/\u2009/g, ' ')
+    .replace(/\u200a/g, ' ')
+    .replace(/\u00ad/g, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\u2026/g, '...')
+}
+
 function formatMoney(amount: number, currency: string) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount)
+  return sanitizePdfText(new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount))
 }
 
 export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Array> {
@@ -24,7 +44,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   let y = height - margin
 
   const drawText = (text: string, x: number, yy: number, size = 11, bold = false) => {
-    page.drawText(text, {
+    page.drawText(sanitizePdfText(text), {
       x,
       y: yy,
       size,

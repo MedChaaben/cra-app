@@ -1,0 +1,8 @@
+work_date,project_name,client_name,hours,daily_rate,comment
+2026-04-01,Portail intranet,Luminara SARL,1,650,Atelier architecture
+2026-04-02,Portail intranet,Luminara SARL,1,650,Développement API
+2026-04-03,Portail intranet,Luminara SARL,0.5,650,Revue de sprint
+2026-04-07,Data pipeline,Atelier Meridian,1,720,Import Airflow
+2026-04-08,Data pipeline,Atelier Meridian,1,720,Tests unitaires
+2026-04-09,Data pipeline,Atelier Meridian,0,720,Férié — Lundi de Pâques
+2026-04-14,Mobile retail,Nova Digital,1,600,Correctifs release

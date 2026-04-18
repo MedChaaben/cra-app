@@ -15,6 +15,7 @@ const TimesheetEditorPage = lazy(() => import('@/pages/TimesheetEditorPage'))
 const InvoicesPage = lazy(() => import('@/pages/InvoicesPage'))
 const InvoiceNewPage = lazy(() => import('@/pages/InvoiceNewPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const ClientsPage = lazy(() => import('@/pages/ClientsPage'))
 
 function PageFallback() {
   return (
@@ -57,6 +58,7 @@ export function AppRouter() {
             <Route index element={<DashboardPage />} />
             <Route path="import" element={<ImportPage />} />
             <Route path="timesheets/:id/edit" element={<TimesheetEditorPage />} />
+            <Route path="clients" element={<ClientsPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="invoices/new" element={<InvoiceNewPage />} />
             <Route path="settings" element={<SettingsPage />} />

@@ -1,0 +1,7 @@
+name,email,address,vat_number,billing_notes
+"Luminara SARL","compta@luminara.example","12 quai Voltaire
+75007 Paris","FR11987654321","Facturation fin de mois, délai 45 j."
+"Atelier Meridian","finance@meridian.example","4 rue des Arts
+69001 Lyon","FR55443322110","Mentionner le bon de commande sur la facture"
+"Nova Digital","billing@nova-digital.example","88 avenue Jean Jaurès
+31000 Toulouse","","Paiement par virement SEPA uniquement"

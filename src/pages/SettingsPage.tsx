@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
-import { seedDemoDataForUser } from '@/services/demoSeed'
 import type { Profile } from '@/types/models'
 
 const schema = z.object({
@@ -76,18 +75,6 @@ export default function SettingsPage() {
     onError: () => toast.error('Impossible d’enregistrer'),
   })
 
-  const demo = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) return
-      await seedDemoDataForUser(user.id)
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries()
-      toast.success('Données démo chargées')
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
   if (profile.isLoading) {
     return <p className="text-sm text-muted-foreground">Chargement…</p>
   }
@@ -134,19 +121,6 @@ export default function SettingsPage() {
               Enregistrer
             </Button>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/80">
-        <CardHeader>
-          <CardTitle>{t('settings.demo')}</CardTitle>
-          <CardDescription>Clients fictifs et feuille d’exemple pour tester le parcours.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button type="button" variant="secondary" onClick={() => void demo.mutate()} disabled={demo.isPending}>
-            {demo.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {t('settings.demoBtn')}
-          </Button>
         </CardContent>
       </Card>
     </div>
