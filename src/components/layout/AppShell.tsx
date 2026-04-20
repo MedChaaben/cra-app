@@ -25,11 +25,37 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
   )
 
+function getUserDisplayName(user: { email?: string | null; user_metadata?: unknown } | null): string {
+  if (!user) return ''
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+  const fullName = typeof meta.full_name === 'string' ? meta.full_name.trim() : ''
+  if (fullName) return fullName
+  const name = typeof meta.name === 'string' ? meta.name.trim() : ''
+  if (name) return name
+  return user.email ?? ''
+}
+
+function getInitials(label: string): string {
+  const cleaned = label.trim()
+  if (!cleaned) return '??'
+  const parts = cleaned
+    .split(/\s+/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
+  }
+  const compact = cleaned.replace(/[^A-Za-z0-9À-ÿ]/g, '')
+  return compact.slice(0, 2).toUpperCase()
+}
+
 export function AppShell() {
   const { t, i18n } = useTranslation()
   const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const { mobileNavOpen, setMobileNavOpen } = useUiStore()
+  const displayName = getUserDisplayName(user)
+  const userInitials = getInitials(displayName)
 
   return (
     <TooltipProvider>
@@ -103,12 +129,18 @@ export function AppShell() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="sm" className="max-w-[160px] truncate">
-                    {user?.email}
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-9 w-9 rounded-full font-semibold tracking-wide"
+                    aria-label={displayName || 'Utilisateur'}
+                    title={displayName || undefined}
+                  >
+                    {userInitials}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>{t('auth.login')}</DropdownMenuLabel>
+                  <DropdownMenuLabel>{displayName || t('auth.login')}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={(e) => {
