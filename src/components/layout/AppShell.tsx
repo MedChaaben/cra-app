@@ -1,5 +1,6 @@
-import { ChevronDown, Menu, Moon, SunMedium } from 'lucide-react'
-import { useState } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { ChevronDown, Menu, Moon, SunMedium, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTheme } from 'next-themes'
@@ -13,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
@@ -82,6 +84,19 @@ export function AppShell() {
     setMobileMoreOpen(false)
   }
 
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const collapseIfDesktop = () => {
+      if (mq.matches) {
+        setMobileNavOpen(false)
+        setMobileMoreOpen(false)
+      }
+    }
+    mq.addEventListener('change', collapseIfDesktop)
+    collapseIfDesktop()
+    return () => mq.removeEventListener('change', collapseIfDesktop)
+  }, [mobileNavOpen, setMobileNavOpen, setMobileMoreOpen])
+
   return (
     <TooltipProvider>
       <div className="flex min-h-svh flex-col overflow-x-clip bg-background">
@@ -92,7 +107,8 @@ export function AppShell() {
               variant="ghost"
               size="icon"
               className="md:hidden"
-              aria-label="Menu"
+              aria-label={t('nav.menu')}
+              aria-expanded={mobileNavOpen}
               onClick={() => {
                 if (mobileNavOpen) setMobileMoreOpen(false)
                 setMobileNavOpen(!mobileNavOpen)
@@ -201,9 +217,34 @@ export function AppShell() {
               </DropdownMenu>
             </div>
           </div>
-          {mobileNavOpen ? (
-            <div className="border-t border-border bg-card px-4 py-3 md:hidden">
-              <nav className="flex flex-col gap-1">
+        </header>
+
+        <Dialog
+          open={mobileNavOpen}
+          onOpenChange={(open) => {
+            setMobileNavOpen(open)
+            if (!open) setMobileMoreOpen(false)
+          }}
+        >
+          <DialogPortal>
+            <DialogOverlay className="md:hidden" />
+            <DialogPrimitive.Content
+              className={cn(
+                'fixed inset-y-0 left-0 z-50 flex w-[min(85vw,18rem)] flex-col border-r border-border bg-card p-4 shadow-lg md:hidden',
+                'duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left'
+              )}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DialogTitle className="sr-only">{t('nav.menu')}</DialogTitle>
+              <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
+                <span className="truncate text-sm font-semibold tracking-tight">{t('appName')}</span>
+                <DialogPrimitive.Close asChild>
+                  <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label={t('nav.closeNav')}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </DialogPrimitive.Close>
+              </div>
+              <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                 {primaryNav.map((item) => (
                   <NavLink
                     key={item.to}
@@ -215,13 +256,13 @@ export function AppShell() {
                     {t(`nav.${item.key}`)}
                   </NavLink>
                 ))}
-                <div className="my-2 h-px bg-border" />
+                <div className="my-2 h-px shrink-0 bg-border" />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    'justify-between rounded-lg px-3 py-2 text-sm font-medium',
+                    'shrink-0 justify-between rounded-lg px-3 py-2 text-sm font-medium',
                     secondaryActive || mobileMoreOpen
                       ? 'bg-accent text-accent-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -234,21 +275,16 @@ export function AppShell() {
                 {mobileMoreOpen ? (
                   <div className="ml-2 flex flex-col gap-1 border-l border-border pl-2">
                     {secondaryNav.map((item) => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={navClass}
-                        onClick={closeMobileMenu}
-                      >
+                      <NavLink key={item.to} to={item.to} className={navClass} onClick={closeMobileMenu}>
                         {t(`nav.${item.key}`)}
                       </NavLink>
                     ))}
                   </div>
                 ) : null}
               </nav>
-            </div>
-          ) : null}
-        </header>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        </Dialog>
         <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 sm:px-6 sm:py-4">
           <Outlet />
         </main>

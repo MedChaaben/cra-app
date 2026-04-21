@@ -6,6 +6,8 @@ const resources = {
     translation: {
       appName: 'CRA Studio',
       nav: {
+        menu: 'Menu',
+        closeNav: 'Fermer le menu',
         dashboard: 'Tableau de bord',
         import: 'Nouveau CRA',
         timesheets: 'Feuilles CRA',
@@ -444,6 +446,8 @@ const resources = {
     translation: {
       appName: 'CRA Studio',
       nav: {
+        menu: 'Menu',
+        closeNav: 'Close menu',
         dashboard: 'Dashboard',
         import: 'New timesheet',
         timesheets: 'Timesheets',
