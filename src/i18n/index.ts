@@ -5,6 +5,8 @@ const resources = {
   fr: {
     translation: {
       appName: 'CRA Studio',
+      appTagline:
+        'Suivi mensuel sur grille, montants et factures PDF — pensé pour les consultants.',
       nav: {
         menu: 'Menu',
         closeNav: 'Fermer le menu',
@@ -452,6 +454,8 @@ const resources = {
   en: {
     translation: {
       appName: 'CRA Studio',
+      appTagline:
+        'Monthly grid timesheets, amounts, and PDF invoices — built for consultants.',
       nav: {
         menu: 'Menu',
         closeNav: 'Close menu',

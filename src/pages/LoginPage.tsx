@@ -65,9 +65,7 @@ export default function LoginPage() {
           C
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{t('appName')}</h1>
-        <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          Saisie intelligente de feuilles de temps et facturation premium.
-        </p>
+        <p className="mt-2 max-w-md text-sm text-muted-foreground">{t('appTagline')}</p>
       </div>
       <Card className="w-full max-w-md border-border/80 shadow-xl">
         <CardHeader>
