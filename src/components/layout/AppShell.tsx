@@ -1,6 +1,7 @@
-import { Menu, Moon, SunMedium } from 'lucide-react'
+import { ChevronDown, Menu, Moon, SunMedium } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,23 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
       ? 'bg-accent text-accent-foreground shadow-sm'
       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
   )
+
+const primaryNav = [
+  { to: '/', key: 'dashboard', end: true },
+  { to: '/timesheets', key: 'timesheets', end: false },
+  { to: '/invoices', key: 'invoices', end: false },
+] as const
+
+const secondaryNav = [
+  { to: '/import', key: 'import' },
+  { to: '/clients', key: 'clients' },
+  { to: '/settings', key: 'settings' },
+] as const
+
+function isPathActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/'
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
 
 function getUserDisplayName(user: { email?: string | null; user_metadata?: unknown } | null): string {
   if (!user) return ''
@@ -53,9 +71,16 @@ export function AppShell() {
   const { t, i18n } = useTranslation()
   const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { pathname } = useLocation()
   const { mobileNavOpen, setMobileNavOpen } = useUiStore()
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const displayName = getUserDisplayName(user)
   const userInitials = getInitials(displayName)
+  const secondaryActive = secondaryNav.some((item) => isPathActive(pathname, item.to))
+  const closeMobileMenu = () => {
+    setMobileNavOpen(false)
+    setMobileMoreOpen(false)
+  }
 
   return (
     <TooltipProvider>
@@ -68,7 +93,10 @@ export function AppShell() {
               size="icon"
               className="md:hidden"
               aria-label="Menu"
-              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              onClick={() => {
+                if (mobileNavOpen) setMobileMoreOpen(false)
+                setMobileNavOpen(!mobileNavOpen)
+              }}
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -79,24 +107,43 @@ export function AppShell() {
               <span className="hidden sm:inline">{t('appName')}</span>
             </Link>
             <nav className="ml-auto hidden items-center gap-1 md:flex">
-              <NavLink to="/" end className={navClass}>
-                {t('nav.dashboard')}
-              </NavLink>
-              <NavLink to="/import" className={navClass}>
-                {t('nav.import')}
-              </NavLink>
-              <NavLink to="/timesheets" className={navClass}>
-                {t('nav.timesheets')}
-              </NavLink>
-              <NavLink to="/clients" className={navClass}>
-                {t('nav.clients')}
-              </NavLink>
-              <NavLink to="/invoices" className={navClass}>
-                {t('nav.invoices')}
-              </NavLink>
-              <NavLink to="/settings" className={navClass}>
-                {t('nav.settings')}
-              </NavLink>
+              {primaryNav.map((item) => (
+                <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
+                  {t(`nav.${item.key}`)}
+                </NavLink>
+              ))}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-9 gap-1.5 rounded-lg px-3 text-sm font-medium',
+                      secondaryActive
+                        ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    {t('nav.more')}
+                    <ChevronDown className="h-4 w-4 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  {secondaryNav.map((item) => (
+                    <DropdownMenuItem
+                      key={item.to}
+                      asChild
+                      className={cn(
+                        'font-medium',
+                        isPathActive(pathname, item.to) && 'bg-accent text-accent-foreground'
+                      )}
+                    >
+                      <Link to={item.to}>{t(`nav.${item.key}`)}</Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
             <div className="ml-auto flex items-center gap-2 md:ml-0">
               <Tooltip>
@@ -156,25 +203,48 @@ export function AppShell() {
           </div>
           {mobileNavOpen ? (
             <div className="border-t border-border bg-card px-4 py-3 md:hidden">
-              <nav className="flex flex-col gap-1" onClick={() => setMobileNavOpen(false)}>
-                <NavLink to="/" end className={navClass}>
-                  {t('nav.dashboard')}
-                </NavLink>
-                <NavLink to="/import" className={navClass}>
-                  {t('nav.import')}
-                </NavLink>
-                <NavLink to="/timesheets" className={navClass}>
-                  {t('nav.timesheets')}
-                </NavLink>
-                <NavLink to="/clients" className={navClass}>
-                  {t('nav.clients')}
-                </NavLink>
-                <NavLink to="/invoices" className={navClass}>
-                  {t('nav.invoices')}
-                </NavLink>
-                <NavLink to="/settings" className={navClass}>
-                  {t('nav.settings')}
-                </NavLink>
+              <nav className="flex flex-col gap-1">
+                {primaryNav.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={navClass}
+                    onClick={closeMobileMenu}
+                  >
+                    {t(`nav.${item.key}`)}
+                  </NavLink>
+                ))}
+                <div className="my-2 h-px bg-border" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'justify-between rounded-lg px-3 py-2 text-sm font-medium',
+                    secondaryActive || mobileMoreOpen
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                  onClick={() => setMobileMoreOpen((open) => !open)}
+                >
+                  {t('nav.more')}
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', mobileMoreOpen && 'rotate-180')} />
+                </Button>
+                {mobileMoreOpen ? (
+                  <div className="ml-2 flex flex-col gap-1 border-l border-border pl-2">
+                    {secondaryNav.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={navClass}
+                        onClick={closeMobileMenu}
+                      >
+                        {t(`nav.${item.key}`)}
+                      </NavLink>
+                    ))}
+                  </div>
+                ) : null}
               </nav>
             </div>
           ) : null}

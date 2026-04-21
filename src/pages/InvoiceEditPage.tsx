@@ -121,8 +121,8 @@ export default function InvoiceEditPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const formSchema = useMemo(() => createEditInvoiceFormSchema(t), [t])
-  /** Dernière facture pour laquelle on a appliqué `reset` (évite de sauter le reset au changement d’URL). */
-  const lastHydratedInvoiceId = useRef<string | null>(null)
+  /** Dernier snapshot de données hydraté dans le formulaire. */
+  const lastHydratedSnapshotKey = useRef<string | null>(null)
 
   const [numberDialogOpen, setNumberDialogOpen] = useState(false)
   const [pendingNumber, setPendingNumber] = useState('')
@@ -244,7 +244,7 @@ export default function InvoiceEditPage() {
   const totalTtc = subtotalHt + vatAmount
 
   useLayoutEffect(() => {
-    lastHydratedInvoiceId.current = null
+    lastHydratedSnapshotKey.current = null
   }, [id])
 
   /**
@@ -255,7 +255,8 @@ export default function InvoiceEditPage() {
   useEffect(() => {
     const inv = invoiceQuery.data
     if (!inv || !id || !itemsQuery.isSuccess || !clients.isSuccess) return
-    if (lastHydratedInvoiceId.current === id) return
+    const snapshotKey = `${id}:${invoiceQuery.dataUpdatedAt}:${itemsQuery.dataUpdatedAt}`
+    if (lastHydratedSnapshotKey.current === snapshotKey) return
 
     const items = itemsQuery.data ?? []
     const status = normalizeInvoiceStatusForForm(inv.status)
@@ -289,8 +290,35 @@ export default function InvoiceEditPage() {
             }))
           : [emptyLine()],
     })
-    lastHydratedInvoiceId.current = id
-  }, [id, invoiceQuery.data, itemsQuery.isSuccess, itemsQuery.data, clients.isSuccess, clients.data, form.reset])
+    lastHydratedSnapshotKey.current = snapshotKey
+  }, [
+    id,
+    invoiceQuery.data,
+    invoiceQuery.dataUpdatedAt,
+    itemsQuery.isSuccess,
+    itemsQuery.data,
+    itemsQuery.dataUpdatedAt,
+    clients.isSuccess,
+    clients.data,
+    form,
+  ])
+
+  /**
+   * Garde-fou: sur certains timings (cache + refresh), le Select client peut rester vide
+   * malgré un `client_id` valide sur la facture. On recale la valeur du form depuis la facture
+   * uniquement si le champ est vide ou pointe vers un client absent des options.
+   */
+  useEffect(() => {
+    if (!clientIdOnInvoice) return
+    const current = form.getValues('clientId')
+    const currentExistsInOptions = Boolean(current && clientSelectOptions.some((c) => c.id === current))
+    if (current && currentExistsInOptions) return
+    form.setValue('clientId', clientIdOnInvoice, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+  }, [clientIdOnInvoice, clientSelectOptions, form])
 
   useEffect(() => {
     if (invoiceQuery.isSuccess && invoiceQuery.data === null) {

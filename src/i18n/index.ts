@@ -12,6 +12,7 @@ const resources = {
         clients: 'Clients',
         invoices: 'Factures',
         settings: 'Réglages',
+        more: 'Plus',
       },
       auth: {
         login: 'Connexion',
@@ -467,6 +468,7 @@ const resources = {
         clients: 'Clients',
         invoices: 'Invoices',
         settings: 'Settings',
+        more: 'More',
       },
       auth: {
         login: 'Sign in',
