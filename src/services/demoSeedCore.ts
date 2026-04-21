@@ -47,7 +47,6 @@ export async function insertDemoDataset(supabase: SupabaseClient, userId: string
       hours: 1,
       daily_rate: 650,
       comment: 'Atelier architecture',
-      ocr_confidence: 96,
       sort_order: 0,
     },
     {
@@ -59,7 +58,6 @@ export async function insertDemoDataset(supabase: SupabaseClient, userId: string
       hours: 0.5,
       daily_rate: 650,
       comment: '',
-      ocr_confidence: 91,
       sort_order: 1,
     },
   ]
