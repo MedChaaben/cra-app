@@ -90,6 +90,6 @@ export async function downloadInvoicePdfFromStorage(path: string): Promise<{ blo
 /** Ouvre un PDF généré en local (aperçu brouillon, sans lecture du fichier stocké). */
 export async function openInvoicePdfPreviewInBrowser(input: InvoicePdfInput, downloadBaseName: string): Promise<void> {
   const pdfBytes = await buildInvoicePdf(input)
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+  const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' })
   openPdfBlobInBrowser(blob, downloadBaseName)
 }

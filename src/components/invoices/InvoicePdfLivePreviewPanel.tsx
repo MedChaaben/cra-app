@@ -65,7 +65,7 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
         const logoBytes = await fetchCompanyLogoBytes(supabase, input.profile.id, input.profile.logo_path)
         const pdfBytes = await buildInvoicePdf({ ...input, logoBytes })
         if (cancelled) return
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+        const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' })
         previewBlobRef.current = blob
         const url = URL.createObjectURL(blob)
         setBlobUrl((prev) => {
