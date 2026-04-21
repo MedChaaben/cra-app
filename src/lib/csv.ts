@@ -1,7 +1,7 @@
 import type { TimesheetEntry } from '@/types/models'
 
 export function downloadTimesheetCsv(filename: string, rows: TimesheetEntry[]) {
-  const header = ['date', 'mission', 'client', 'heures', 'tjm', 'commentaire', 'confiance_ocr']
+  const header = ['date', 'mission', 'client', 'jours', 'tjm', 'commentaire', 'confiance_ocr']
   const lines = rows.map((r) =>
     [
       r.work_date ?? '',
