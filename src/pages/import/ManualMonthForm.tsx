@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/hooks/useAuth'
+import { useClients } from '@/hooks/useClients'
 import { getFrenchMetropolitanHolidayLabel } from '@/lib/frenchPublicHolidays'
 import { buildManualMonthRows, getDayRowKind, summarizeManualMonth } from '@/lib/manualMonthRows'
 import { cn } from '@/lib/utils'
@@ -41,8 +42,10 @@ export function ManualMonthForm({ onBack }: Props) {
   const [month, setMonth] = useState(() => new Date().getMonth() + 1)
   const [defaultProject, setDefaultProject] = useState('')
   const [defaultClient, setDefaultClient] = useState('')
+  const [selectedClientId, setSelectedClientId] = useState<string>('none')
   const [defaultTjm, setDefaultTjm] = useState('')
   const [busy, setBusy] = useState(false)
+  const clientsQuery = useClients(user?.id)
 
   const monthStart = useMemo(() => new Date(year, month - 1, 1), [year, month])
   const monthLabel = useMemo(
@@ -80,9 +83,14 @@ export function ManualMonthForm({ onBack }: Props) {
     const dailyRate = Number.isFinite(tjm) && tjm >= 0 ? tjm : 0
     setBusy(true)
     try {
+      const selectedClient =
+        selectedClientId !== 'none' ? (clientsQuery.data ?? []).find((c) => c.id === selectedClientId) : null
+      const defaultClientName = selectedClient?.name ?? defaultClient.trim()
+      const defaultClientId = selectedClient?.id ?? null
+
       const rows = buildManualMonthRows(year, month, {
         project: defaultProject.trim(),
-        client: defaultClient.trim(),
+        client: defaultClientName,
         dailyRate,
       })
       const monthYear = format(monthStart, 'yyyy-MM')
@@ -106,6 +114,7 @@ export function ManualMonthForm({ onBack }: Props) {
         work_date: r.work_date,
         project_name: r.project_name || null,
         client_name: r.client_name || null,
+        client_id: defaultClientId,
         hours: r.hours,
         daily_rate: r.daily_rate,
         comment: r.comment,
@@ -186,7 +195,7 @@ export function ManualMonthForm({ onBack }: Props) {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2 sm:col-span-1">
                 <Label htmlFor="def-mission">{t('import.defaultMission')}</Label>
                 <Input
@@ -206,6 +215,22 @@ export function ManualMonthForm({ onBack }: Props) {
                   onChange={(e) => setDefaultClient(e.target.value)}
                   className="bg-card"
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-1">
+                <Label>{t('import.defaultClientSelect')}</Label>
+                <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                  <SelectTrigger className="bg-card">
+                    <SelectValue placeholder={t('import.defaultClientSelectPh')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t('import.defaultClientSelectNone')}</SelectItem>
+                    {(clientsQuery.data ?? []).map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2 sm:col-span-1">
                 <Label htmlFor="def-tjm">{t('import.defaultTjm')}</Label>

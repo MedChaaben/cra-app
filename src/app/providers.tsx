@@ -24,7 +24,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <ThemeProvider>
         <AuthProvider>
           {children}
-          <Toaster richColors closeButton position="top-center" />
+          <Toaster richColors closeButton position="top-right" />
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

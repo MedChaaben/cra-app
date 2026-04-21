@@ -25,6 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
+import { useClients } from '@/hooks/useClients'
 import { getCroppedImageDataUrl } from '@/lib/cropImage'
 import { cn } from '@/lib/utils'
 import { ManualMonthForm } from '@/pages/import/ManualMonthForm'
@@ -71,6 +72,9 @@ export default function ImportPage() {
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [documentProfile, setDocumentProfile] = useState<ParseTableProfile>('auto')
   const [contrastApplied, setContrastApplied] = useState(false)
+  const [scanClientName, setScanClientName] = useState('')
+  const [scanClientId, setScanClientId] = useState<string>('none')
+  const clientsQuery = useClients(user?.id)
 
   const resetScanFlow = useCallback(() => {
     setImageSrc(null)
@@ -82,6 +86,8 @@ export default function ImportPage() {
     setOcrResult(null)
     setDocumentProfile('auto')
     setContrastApplied(false)
+    setScanClientName('')
+    setScanClientId('none')
   }, [])
 
   const goPick = useCallback(() => {
@@ -179,11 +185,17 @@ export default function ImportPage() {
         .single()
       if (tErr) throw tErr
 
+      const selectedClient =
+        scanClientId !== 'none' ? (clientsQuery.data ?? []).find((c) => c.id === scanClientId) : null
+      const forcedClientName = selectedClient?.name ?? scanClientName.trim()
+      const forcedClientId = selectedClient?.id ?? null
+
       const entries = ocrResult.rows.map((r, i) => ({
         timesheet_id: ts.id,
         work_date: r.work_date,
         project_name: r.project_name,
-        client_name: r.client_name,
+        client_name: forcedClientName || r.client_name,
+        client_id: forcedClientId,
         hours: r.hours,
         daily_rate: r.daily_rate,
         comment: r.comment,
@@ -336,6 +348,36 @@ export default function ImportPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">{t('import.documentProfileHint')}</p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="scan-client-name" className="text-xs font-medium">
+                    {t('import.scanClientName')}
+                  </Label>
+                  <Input
+                    id="scan-client-name"
+                    value={scanClientName}
+                    onChange={(e) => setScanClientName(e.target.value)}
+                    placeholder={t('import.scanClientNamePh')}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t('import.scanClientSelect')}</Label>
+                  <Select value={scanClientId} onValueChange={setScanClientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('import.scanClientSelectPh')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t('import.scanClientSelectNone')}</SelectItem>
+                      {(clientsQuery.data ?? []).map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
