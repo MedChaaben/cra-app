@@ -112,7 +112,7 @@ export function CraOuvreSummary({ year, month, entries, variant = 'panel', class
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-border/70 bg-gradient-to-br from-sky-50/90 via-background to-muted/30 p-4 shadow-sm dark:from-sky-950/25 dark:via-background dark:to-muted/20 sm:flex-row sm:items-center',
+        'flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-gradient-to-br from-sky-50/90 via-background to-muted/30 p-4 shadow-sm dark:from-sky-950/25 dark:via-background dark:to-muted/20 sm:flex-row sm:items-center',
         className,
       )}
     >

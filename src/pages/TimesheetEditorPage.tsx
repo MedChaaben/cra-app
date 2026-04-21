@@ -538,21 +538,21 @@ export default function TimesheetEditorPage() {
 
   if (timesheetQuery.isLoading || entriesQuery.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-64" />
+      <div className="w-full min-w-0 space-y-4">
+        <Skeleton className="h-10 w-full max-w-xs" />
         <Skeleton className="h-64 w-full" />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">{t('editor.title')}</h1>
-          <p className="text-sm text-muted-foreground">{timesheetQuery.data?.title}</p>
+          <p className="truncate text-sm text-muted-foreground">{timesheetQuery.data?.title}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -571,18 +571,18 @@ export default function TimesheetEditorPage() {
         </div>
       </div>
 
-      <Card className="border-border/80">
-        <CardHeader className="space-y-1 pb-3">
+      <Card className="min-w-0 border-border/80">
+        <CardHeader className="min-w-0 space-y-1 pb-3">
           <CardTitle className="text-base">{t('editor.calendarTitle')}</CardTitle>
           <CardDescription>{t('editor.calendarSubtitle')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-2 sm:col-span-2">
+        <CardContent className="min-w-0 space-y-4">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0 space-y-2 sm:col-span-2">
               <Label className="text-xs">{t('editor.sheetClient')}</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <Select value={clientSelectId} onValueChange={setClientSelectId}>
-                  <SelectTrigger className="sm:min-w-[12rem]">
+                  <SelectTrigger className="min-w-0 sm:min-w-[12rem]">
                     <SelectValue placeholder={t('editor.sheetClientSelectPh')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -599,12 +599,12 @@ export default function TimesheetEditorPage() {
                     value={clientFreeName}
                     onChange={(e) => setClientFreeName(e.target.value)}
                     placeholder={t('editor.sheetClientFreePh')}
-                    className="flex-1"
+                    className="min-w-0 flex-1"
                   />
                 ) : null}
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label htmlFor="sheet-mission" className="text-xs">
                 {t('editor.sheetMission')}
               </Label>
@@ -615,7 +615,7 @@ export default function TimesheetEditorPage() {
                 placeholder={t('editor.sheetMissionPh')}
               />
             </div>
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label htmlFor="sheet-tjm" className="text-xs">
                 {t('editor.sheetTjm')}
               </Label>
@@ -629,22 +629,24 @@ export default function TimesheetEditorPage() {
             </div>
           </div>
 
-          <div className="space-y-3 border-y border-border/60 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
+          <div className="min-w-0 space-y-3 border-y border-border/60 py-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
+              <div className="flex min-w-0 items-center justify-center gap-1 sm:justify-start">
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goPrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-[10rem] px-2 text-center text-sm font-semibold capitalize tabular-nums">
+                <span className="min-w-0 flex-1 px-1 text-center text-xs font-semibold capitalize leading-snug tabular-nums sm:min-w-[9rem] sm:flex-none sm:px-2 sm:text-sm sm:leading-none">
                   {monthLabel}
                 </span>
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goNextMonth}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="secondary">{t('editor.autosave')}</Badge>
-                <span className="font-medium tabular-nums text-muted-foreground">
+              <div className="flex min-w-0 flex-wrap items-center justify-center gap-2 text-sm sm:justify-end">
+                <Badge variant="secondary" className="shrink-0">
+                  {t('editor.autosave')}
+                </Badge>
+                <span className="min-w-0 text-center font-medium tabular-nums text-muted-foreground sm:text-left">
                   {t('editor.totalHt')}{' '}
                   {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
                     style: 'currency',
@@ -653,11 +655,11 @@ export default function TimesheetEditorPage() {
                 </span>
               </div>
             </div>
-            <CraOuvreSummary variant="panel" year={viewMonth.y} month={viewMonth.m} entries={rows} />
+            <CraOuvreSummary variant="panel" className="min-w-0" year={viewMonth.y} month={viewMonth.m} entries={rows} />
           </div>
 
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[11px] text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="min-w-0 space-y-2 rounded-lg border border-border/60 bg-muted/20 px-2 py-2.5 text-[11px] text-muted-foreground sm:px-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
               <span className="inline-flex items-center gap-2">
                 <span className="h-3.5 w-7 rounded-sm border border-sky-300/50 bg-sky-100 shadow-sm dark:border-sky-600/40 dark:bg-sky-950/50" />
                 {t('editor.legendFull')}
@@ -671,7 +673,7 @@ export default function TimesheetEditorPage() {
                 {t('editor.legendWorkOff')}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 pt-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 pt-2 sm:gap-x-4">
               <span className="inline-flex items-center gap-2">
                 <span className="h-3.5 w-7 rounded-sm border border-slate-200/95 bg-slate-100 shadow-sm dark:border-slate-700/55 dark:bg-slate-900/50" />
                 {t('editor.legendWeekend')}
@@ -684,20 +686,20 @@ export default function TimesheetEditorPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border/70 bg-muted/10 p-2">
-            <div className="min-w-[36rem] space-y-1">
-              <div className="grid grid-cols-7 gap-px text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="w-full max-w-full overflow-x-hidden rounded-lg border border-border/70 bg-muted/10 p-1 sm:p-2">
+            <div className="w-full min-w-0 space-y-px sm:space-y-1">
+              <div className="grid w-full min-w-0 grid-cols-7 gap-px text-center text-[9px] font-medium uppercase leading-none tracking-wide text-muted-foreground sm:text-[10px]">
                 {(['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'] as const).map((d) => (
-                  <div key={d} className="py-1">
+                  <div key={d} className="truncate px-px py-1">
                     {t(`import.weekdayShort.${d}`)}
                   </div>
                 ))}
               </div>
               {calendarWeeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 gap-px">
+                <div key={wi} className="grid w-full min-w-0 grid-cols-7 gap-px">
                   {week.map((cell, ci) => {
                     if (cell.type === 'empty') {
-                      return <div key={`e-${wi}-${ci}`} className="min-h-[3.25rem] rounded-md bg-transparent" />
+                      return <div key={`e-${wi}-${ci}`} className="min-h-[2.85rem] rounded-md bg-transparent sm:min-h-[3.25rem]" />
                     }
                     const kind = getDayRowKind(cell.iso)
                     const hol = getFrenchMetropolitanHolidayLabel(cell.iso)
@@ -721,31 +723,38 @@ export default function TimesheetEditorPage() {
                         }}
                         aria-label={t('editor.dayCycleAria', { day: cell.dayNum, month: monthLabel, state: ariaState })}
                         className={cn(
-                          'flex min-h-[3.75rem] flex-col items-center justify-between gap-0.5 rounded-lg border p-1.5 text-left transition-[background,box-shadow,transform,border-color] duration-200 hover:brightness-[1.02] active:scale-[0.98]',
+                          'flex min-h-[2.95rem] flex-col items-center justify-between gap-0.5 rounded-md border p-1 text-left transition-[background,box-shadow,transform,border-color] duration-200 hover:brightness-[1.02] active:scale-[0.98] sm:min-h-[3.75rem] sm:rounded-lg sm:p-1.5',
                           tone.card,
                         )}
                       >
-                        <div className="flex w-full items-start justify-between gap-0.5">
-                          <span className={cn('text-[11px] font-semibold tabular-nums', tone.dayNum)}>{cell.dayNum}</span>
+                        <div className="flex w-full min-w-0 items-start justify-between gap-px">
+                          <span className={cn('shrink-0 text-[10px] font-semibold tabular-nums sm:text-[11px]', tone.dayNum)}>
+                            {cell.dayNum}
+                          </span>
                           {kind === 'holiday' ? (
                             <span
                               className={cn(
-                                'max-w-[3.5rem] truncate text-[8px] font-semibold uppercase tracking-wide leading-tight',
+                                'max-w-[2.35rem] truncate text-[7px] font-semibold uppercase leading-tight tracking-wide sm:max-w-[3.5rem] sm:text-[8px]',
                                 tone.corner,
                               )}
                             >
                               {t('editor.badgeHoliday')}
                             </span>
                           ) : kind === 'weekend' ? (
-                            <span className={cn('text-[8px] font-semibold uppercase tracking-wide', tone.corner)}>
+                            <span
+                              className={cn(
+                                'max-w-[2.35rem] truncate text-[7px] font-semibold uppercase leading-tight sm:max-w-[3.5rem] sm:text-[8px]',
+                                tone.corner,
+                              )}
+                            >
                               {t('editor.badgeWeekendShort')}
                             </span>
                           ) : (
-                            <span className="w-4 shrink-0" aria-hidden />
+                            <span className="w-3 shrink-0 sm:w-4" aria-hidden />
                           )}
                         </div>
                         <DayWorkCheckbox band={workState} variant={tone.check} />
-                        <span className={cn('w-full text-center text-[10px] font-semibold tabular-nums', tone.fraction)}>
+                        <span className={cn('w-full min-w-0 text-center text-[9px] font-semibold tabular-nums sm:text-[10px]', tone.fraction)}>
                           {workState === 1 ? '1' : workState === 0.5 ? '½' : '0'}
                         </span>
                       </button>
