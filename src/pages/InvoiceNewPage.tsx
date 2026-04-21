@@ -1,13 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { InvoiceEditorMobileToggle } from '@/components/invoices/InvoiceEditorMobileToggle'
 import { InvoicePdfLivePreviewPanel } from '@/components/invoices/InvoicePdfLivePreviewPanel'
 import { buildLivePreviewInputNew } from '@/components/invoices/invoicePdfLivePreviewModel'
 import { InvoiceTemplatePicker } from '@/components/invoices/InvoiceTemplatePicker'
@@ -34,6 +35,7 @@ import {
 } from '@/lib/invoiceCraAggregate'
 import { fetchCompanyLogoBytes } from '@/lib/fetchCompanyLogo'
 import { supabase } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import { formatInvoiceNumberFromSettings } from '@/lib/invoiceNumber'
 import { buildInvoicePdf } from '@/services/pdf/invoicePdf'
 import { INVOICE_PDF_TEMPLATE_IDS, type InvoicePdfTemplateId } from '@/services/pdf/invoice/types'
@@ -91,6 +93,9 @@ export default function InvoiceNewPage() {
   const craImportDone = useRef(false)
   const pdfDefaultsSynced = useRef(false)
   const formSchema = useMemo(() => createInvoiceFormSchema(t), [t])
+  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit')
+  const formPanelId = useId()
+  const previewPanelId = useId()
 
   const clients = useQuery({
     queryKey: ['clients', user?.id],
@@ -392,9 +397,27 @@ export default function InvoiceNewPage() {
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('invoices.invoiceForm.subtitle')}</p>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-y-contain pt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_min(380px,34vw)] lg:grid-rows-[minmax(0,1fr)] lg:gap-8 lg:overflow-hidden lg:pt-6 xl:grid-cols-[minmax(0,1fr)_min(440px,38%)]">
-        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-3">
-          <form className="space-y-6 pb-4 lg:space-y-7 lg:pb-6" onSubmit={onSubmit}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3 lg:pt-0">
+        <InvoiceEditorMobileToggle
+          value={mobileTab}
+          onChange={setMobileTab}
+          formPanelId={formPanelId}
+          previewPanelId={previewPanelId}
+          className="mb-2 shrink-0 lg:hidden"
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-1 lg:grid lg:grid-cols-[minmax(0,1fr)_min(380px,34vw)] lg:grid-rows-[minmax(0,1fr)] lg:gap-8 lg:overflow-hidden lg:pt-6 xl:grid-cols-[minmax(0,1fr)_min(440px,38%)]">
+          <div
+            id={formPanelId}
+            role="tabpanel"
+            aria-labelledby={`${formPanelId}-tab`}
+            className={cn(
+              'min-h-0 min-w-0 lg:block lg:overflow-y-auto lg:overscroll-y-contain lg:pr-3',
+              mobileTab === 'preview' && 'max-lg:hidden',
+              mobileTab === 'edit' && 'max-lg:flex max-lg:flex-1 max-lg:flex-col max-lg:overflow-y-auto max-lg:overscroll-y-contain',
+            )}
+          >
+            <form className="space-y-6 pb-[max(1rem,env(safe-area-inset-bottom))] lg:space-y-7 lg:pb-6" onSubmit={onSubmit}>
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">{t('invoices.invoiceForm.clientSection')}</CardTitle>
@@ -661,15 +684,25 @@ export default function InvoiceNewPage() {
             </CardContent>
           </Card>
       </form>
-        </div>
+          </div>
 
-        <aside className="flex min-h-[min(20rem,48svh)] w-full min-w-0 shrink-0 flex-col lg:min-h-0 lg:h-full">
-          <InvoicePdfLivePreviewPanel
-            className="min-h-0 flex-1 shadow-lg"
-            input={livePreviewInput}
-            downloadBaseName={previewFileName}
-          />
-        </aside>
+          <aside
+            id={previewPanelId}
+            role="tabpanel"
+            aria-labelledby={`${previewPanelId}-tab`}
+            className={cn(
+              'flex min-h-0 w-full min-w-0 flex-col overflow-hidden lg:h-full',
+              mobileTab === 'edit' && 'max-lg:hidden',
+              mobileTab === 'preview' && 'max-lg:flex-1',
+            )}
+          >
+            <InvoicePdfLivePreviewPanel
+              className="min-h-0 flex-1 shadow-lg max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:shadow-none lg:rounded-xl"
+              input={livePreviewInput}
+              downloadBaseName={previewFileName}
+            />
+          </aside>
+        </div>
       </div>
     </div>
   )
