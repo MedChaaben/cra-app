@@ -531,8 +531,8 @@ export default function InvoiceEditPage() {
 
   if (waitingForData) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center space-y-4 px-1">
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-64 w-full" />
         </div>
@@ -543,33 +543,35 @@ export default function InvoiceEditPage() {
   const inv = invoiceQuery.data as Invoice
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1580px] flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain pb-8 lg:gap-6 lg:overflow-hidden lg:pb-0">
-      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-8 px-2">
-            <Link to="/invoices">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              {t('invoices.detail.back')}
-            </Link>
-          </Button>
-          <h1 className="text-3xl font-semibold tracking-tight">{inv.invoice_number}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('invoices.detail.subtitle')}</p>
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/70 bg-background/95 pb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1">
+            <Button asChild variant="ghost" size="sm" className="-ml-2 h-8 px-2 text-muted-foreground hover:text-foreground">
+              <Link to="/invoices">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                {t('invoices.detail.back')}
+              </Link>
+            </Button>
+            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{inv.invoice_number}</h1>
+            <p className="text-sm text-muted-foreground">{t('invoices.detail.subtitle')}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2 sm:pt-7">
+            <Button type="button" variant="outline" size="sm" onClick={openNumberDialog}>
+              <Hash className="h-4 w-4" />
+              {t('invoices.detail.changeNumber')}
+            </Button>
+            <Button type="button" variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+              {t('invoices.detail.delete')}
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={openNumberDialog}>
-            <Hash className="h-4 w-4" />
-            {t('invoices.detail.changeNumber')}
-          </Button>
-          <Button type="button" variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-            {t('invoices.detail.delete')}
-          </Button>
-        </div>
-      </div>
+      </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,36vw)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,640px)_min(420px,40%)]">
-        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-2">
-          <form className="space-y-8 pb-2" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
-        <Card className="border-border/80">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-y-contain pt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_min(380px,34vw)] lg:grid-rows-[minmax(0,1fr)] lg:gap-8 lg:overflow-hidden lg:pt-6 xl:grid-cols-[minmax(0,1fr)_min(440px,38%)]">
+        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-3">
+          <form className="space-y-6 pb-4 lg:space-y-7 lg:pb-6" onSubmit={form.handleSubmit((v) => void saveInvoice.mutateAsync(v))}>
+        <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">{t('invoices.detail.metaSection')}</CardTitle>
             <CardDescription>{t('invoices.detail.metaHint')}</CardDescription>
@@ -690,7 +692,7 @@ export default function InvoiceEditPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80">
+        <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">{t('invoices.invoiceForm.linesSection')}</CardTitle>
             <CardDescription>{t('invoices.detail.linesHint')}</CardDescription>
@@ -774,7 +776,7 @@ export default function InvoiceEditPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-amber-500/30 bg-gradient-to-b from-amber-500/[0.06] to-transparent">
+        <Card className="border-primary/20 bg-gradient-to-b from-primary/[0.06] to-transparent shadow-sm">
           <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm">
               <div className="flex justify-between gap-8">
@@ -800,9 +802,9 @@ export default function InvoiceEditPage() {
       </form>
         </div>
 
-        <aside className="flex w-full min-w-0 shrink-0 flex-col max-lg:min-h-[min(17rem,42svh)] lg:h-full lg:min-h-0 lg:shrink">
+        <aside className="flex min-h-[min(20rem,48svh)] w-full min-w-0 shrink-0 flex-col lg:min-h-0 lg:h-full">
           <InvoicePdfLivePreviewPanel
-            className="min-h-0 flex-1 max-lg:min-h-[16rem]"
+            className="min-h-0 flex-1 shadow-lg"
             input={livePreviewInput}
             downloadBaseName={inv.invoice_number}
           />

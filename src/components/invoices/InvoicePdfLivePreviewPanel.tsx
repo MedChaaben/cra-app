@@ -105,7 +105,7 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.06]',
+        'flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.07]',
         className,
       )}
     >
@@ -131,7 +131,7 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
         </Button>
       </div>
 
-      <div className="relative min-h-0 flex-1 bg-muted/20">
+      <div className="relative min-h-0 flex-1 bg-gradient-to-b from-muted/35 via-muted/20 to-muted/30">
         {!input ? (
           <div className="flex h-full min-h-[14rem] flex-col items-center justify-center gap-2 px-6 py-12 text-center lg:min-h-0">
             <p className="max-w-[240px] text-sm text-muted-foreground">{t('invoices.invoiceForm.livePdfEmpty')}</p>

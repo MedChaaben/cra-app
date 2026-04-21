@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -347,7 +347,7 @@ export default function InvoiceNewPage() {
 
   if (clients.isLoading || profile.isLoading || settings.isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-full min-h-0 flex-1 flex-col items-start justify-center overflow-hidden">
         <p className="text-sm text-muted-foreground">Chargement…</p>
       </div>
     )
@@ -355,7 +355,7 @@ export default function InvoiceNewPage() {
 
   if (!clients.data?.length) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
         <Card className="max-w-lg border-amber-500/40 bg-amber-500/5">
         <CardHeader>
           <CardTitle>{t('invoices.clientRequiredTitle')}</CardTitle>
@@ -380,15 +380,21 @@ export default function InvoiceNewPage() {
   const previewFileName = settings.data ? formatInvoiceNumberFromSettings(settings.data as Settings) : 'facture'
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1580px] flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain pb-8 lg:gap-6 lg:overflow-hidden lg:pb-0">
-      <div className="shrink-0">
-        <h1 className="text-3xl font-semibold tracking-tight">{t('invoices.new')}</h1>
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-border/70 bg-background/95 pb-4">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-8 px-2 text-muted-foreground hover:text-foreground">
+          <Link to="/invoices">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            {t('invoices.detail.back')}
+          </Link>
+        </Button>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('invoices.new')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('invoices.invoiceForm.subtitle')}</p>
-      </div>
+      </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_min(360px,36vw)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,640px)_min(420px,40%)]">
-        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-2">
-          <form className="space-y-8 pb-2" onSubmit={onSubmit}>
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-y-contain pt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_min(380px,34vw)] lg:grid-rows-[minmax(0,1fr)] lg:gap-8 lg:overflow-hidden lg:pt-6 xl:grid-cols-[minmax(0,1fr)_min(440px,38%)]">
+        <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-3">
+          <form className="space-y-6 pb-4 lg:space-y-7 lg:pb-6" onSubmit={onSubmit}>
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">{t('invoices.invoiceForm.clientSection')}</CardTitle>
@@ -624,7 +630,7 @@ export default function InvoiceNewPage() {
             </CardContent>
           </Card>
 
-        <Card className="border-amber-500/30 bg-gradient-to-b from-amber-500/[0.07] to-transparent shadow-sm">
+        <Card className="border-primary/20 bg-gradient-to-b from-primary/[0.06] to-transparent shadow-sm">
             <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-3 text-sm">
                 <p className="text-base font-semibold">{t('invoices.invoiceForm.summary')}</p>
@@ -640,10 +646,10 @@ export default function InvoiceNewPage() {
                     {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(vatAmount)}
                   </span>
                 </div>
-                <Separator className="bg-amber-500/20" />
+                <Separator className="bg-primary/15" />
                 <div className="flex justify-between gap-8 text-base font-semibold">
                   <span>{t('invoices.invoiceForm.totalTtc')}</span>
-                  <span className="tabular-nums text-amber-700 dark:text-amber-400">
+                  <span className="tabular-nums text-primary">
                     {new Intl.NumberFormat(numLocale, { style: 'currency', currency: watchedCurrency }).format(totalTtc)}
                   </span>
                 </div>
@@ -657,9 +663,9 @@ export default function InvoiceNewPage() {
       </form>
         </div>
 
-        <aside className="flex w-full min-w-0 shrink-0 flex-col max-lg:min-h-[min(17rem,42svh)] lg:h-full lg:min-h-0 lg:shrink">
+        <aside className="flex min-h-[min(20rem,48svh)] w-full min-w-0 shrink-0 flex-col lg:min-h-0 lg:h-full">
           <InvoicePdfLivePreviewPanel
-            className="min-h-0 flex-1 max-lg:min-h-[16rem]"
+            className="min-h-0 flex-1 shadow-lg"
             input={livePreviewInput}
             downloadBaseName={previewFileName}
           />
