@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { enUS, fr } from 'date-fns/locale'
-import { FileSpreadsheet, Plus, Receipt, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, FileSpreadsheet, Plus, Receipt } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -10,6 +10,7 @@ import { ReportingFiltersCard } from '@/components/reporting/ReportingFiltersCar
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { useClients } from '@/hooks/useClients'
@@ -34,7 +35,6 @@ export default function DashboardPage() {
   const timesheets = useTimesheets(user?.id)
 
   useEffect(() => {
-    // Synchronise le champ quand l’URL change (navigation / lien partagé).
     // eslint-disable-next-line react-hooks/set-state-in-effect -- source de vérité externe (search params)
     setSearchDraft(slice.query)
   }, [slice.query])
@@ -120,15 +120,18 @@ export default function DashboardPage() {
     })
   }, [invoices.data, slice.clientId, range, qnorm, clientNameById])
 
+  const hasLate = Boolean(d && d.latePaymentCount > 0)
+  const gapAttention = Boolean(d && d.gapToInvoiceHt > 0)
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">{t('dashboard.subtitleFiltered')}</p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">{rangeLabel}</p>
+          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{t('dashboard.subtitleFiltered')}</p>
+          <p className="text-xs font-medium tabular-nums text-muted-foreground/90">{rangeLabel}</p>
         </div>
-        <Button asChild className="shrink-0 shadow-md shadow-primary/20">
+        <Button asChild className="shrink-0 shadow-md shadow-primary/15">
           <Link to="/import">
             <Plus className="h-4 w-4" />
             {t('nav.import')}
@@ -147,147 +150,190 @@ export default function DashboardPage() {
         clients={clientsQuery.data ?? []}
       />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('dashboard.sectionActivity')}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label={t('dashboard.metricCraRevenue')}
-            hint={t('dashboard.metricCraRevenueHint')}
-            value={d ? fmt.moneyHt(d.craRevenueHt) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.metricSoldDays')}
-            hint={t('dashboard.metricSoldDaysHint', { hours: d ? fmt.days(d.craHours) : '—' })}
-            value={d ? fmt.days(d.soldDays) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.metricAvgTjm')}
-            hint={t('dashboard.metricAvgTjmHint')}
-            value={d ? fmt.moneyHtPrecise(d.avgDailyRate) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.metricAvgMonthly')}
-            hint={t('dashboard.metricAvgMonthlyHint')}
-            value={d ? fmt.moneyHt(d.avgMonthlyRevenueHt) : undefined}
-            loading={stats.isLoading}
-          />
-        </div>
+      <section className="space-y-4">
+        <h2 className="sr-only">{t('dashboard.sectionActivity')}</h2>
+        <Card className="overflow-hidden border-border/70 shadow-sm">
+          <div className="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+            <div className="relative space-y-4 p-6 sm:p-8 lg:border-r lg:border-border/60">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {t('dashboard.heroRevenueLabel')}
+                </p>
+                <div className="mt-3">
+                  {stats.isLoading ? (
+                    <Skeleton className="h-12 w-48 max-w-full sm:h-14 sm:w-56" />
+                  ) : (
+                    <p className="text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
+                      {d ? fmt.moneyHt(d.craRevenueHt) : '—'}
+                    </p>
+                  )}
+                </div>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+                  {t('dashboard.heroRevenueHint')}
+                </p>
+              </div>
+
+              {d?.yearEndProjectionHt != null ? (
+                <div className="rounded-lg border border-primary/20 bg-primary/[0.06] px-4 py-3 text-sm">
+                  <p className="font-medium text-foreground">{t('dashboard.yearProjection')}</p>
+                  <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="text-lg font-semibold tabular-nums text-primary">
+                      {fmt.moneyHt(d.yearEndProjectionHt)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{t('dashboard.yearProjectionHint')}</span>
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col justify-center bg-muted/25 p-6 sm:p-8">
+              <StatLine
+                label={t('dashboard.statTjm')}
+                loading={stats.isLoading}
+                value={d ? fmt.moneyHtPrecise(d.avgDailyRate) : undefined}
+              />
+              <Separator className="my-1 bg-border/60" />
+              <StatLine
+                label={t('dashboard.statSoldDays')}
+                loading={stats.isLoading}
+                value={d ? fmt.days(d.soldDays) : undefined}
+                detail={d ? t('dashboard.statDaysDetail', { days: fmt.days(d.soldDays) }) : undefined}
+              />
+              <Separator className="my-1 bg-border/60" />
+              <StatLine
+                label={t('dashboard.statAvgMonth')}
+                loading={stats.isLoading}
+                value={d ? fmt.moneyHt(d.avgMonthlyRevenueHt) : undefined}
+                detail={t('dashboard.statAvgMonthHint')}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/15 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('dashboard.topClient')}
+              </p>
+              {stats.isLoading ? (
+                <Skeleton className="h-6 w-44" />
+              ) : d && d.topClientRevenueHt > 0 ? (
+                <p className="truncate text-sm font-medium text-foreground">
+                  <span className="text-muted-foreground">{t('dashboard.topClientShare')} </span>
+                  {d.topClientUnassigned ? t('dashboard.topClientUnassigned') : (d.topClientName ?? '—')}
+                  <span className="ml-2 tabular-nums text-primary">{fmt.moneyHt(d.topClientRevenueHt)} HT</span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('dashboard.topClientNone')}</p>
+              )}
+            </div>
+            <p className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              {stats.isLoading ? <Skeleton className="h-4 w-36" /> : d ? t('dashboard.sheetsInPeriod', { count: d.timesheetsInPeriod }) : null}
+            </p>
+          </div>
+        </Card>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('dashboard.sectionBilling')}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label={t('dashboard.metricInvoicesCount')}
-            hint={t('dashboard.metricInvoicesCountHint')}
-            value={d ? String(d.invoicesCountInPeriod) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.metricInvoicesTtc')}
-            hint={t('dashboard.metricInvoicesTtcHint')}
-            value={d ? fmt.moneyTtc(d.invoicesTtcInPeriod) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.latePayments')}
-            value={
-              d
-                ? d.latePaymentCount > 0
-                  ? t('dashboard.latePaymentsSub', {
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">{t('dashboard.sectionBilling')}</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs font-semibold uppercase tracking-wide">
+                {t('dashboard.billIssuedTitle')}
+              </CardDescription>
+              <CardTitle className="pt-1 text-2xl font-semibold tabular-nums sm:text-3xl">
+                {stats.isLoading ? <Skeleton className="h-9 w-32" /> : d ? fmt.moneyTtc(d.invoicesTtcInPeriod) : '—'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-xs text-muted-foreground">
+              <p>{t('dashboard.billIssuedHint')}</p>
+              {d ? (
+                <p className="font-medium text-foreground/80">
+                  {t('dashboard.billIssuedMeta', {
+                    count: d.invoicesCountInPeriod,
+                    ht: fmt.moneyHt(d.invoicesHtInPeriod),
+                  })}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card
+            className={cn(
+              'border-border/70 shadow-sm transition-colors',
+              gapAttention && 'border-amber-500/35 bg-amber-500/[0.04]',
+            )}
+          >
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs font-semibold uppercase tracking-wide">
+                {t('dashboard.gapToInvoice')}
+              </CardDescription>
+              <CardTitle className="pt-1 text-2xl font-semibold tabular-nums sm:text-3xl">
+                {stats.isLoading ? <Skeleton className="h-9 w-32" /> : d ? fmt.moneyHt(d.gapToInvoiceHt) : '—'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('dashboard.gapToInvoiceHint')}</p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className={cn(
+              'border-border/70 shadow-sm transition-colors',
+              hasLate && 'border-destructive/40 bg-destructive/[0.04]',
+            )}
+          >
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+              <div className="space-y-1">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wide">
+                  {t('dashboard.latePayments')}
+                </CardDescription>
+                <CardTitle
+                  className={cn(
+                    'pt-1 text-xl font-semibold leading-snug sm:text-2xl',
+                    hasLate ? 'text-destructive' : 'text-foreground',
+                  )}
+                >
+                  {stats.isLoading ? (
+                    <Skeleton className="h-8 w-36" />
+                  ) : d && d.latePaymentCount > 0 ? (
+                    t('dashboard.latePaymentsSub', {
                       count: d.latePaymentCount,
                       amount: fmt.moneyTtc(d.latePaymentAmountTtc),
                     })
-                  : t('dashboard.latePaymentsNone')
-                : undefined
-            }
-            hint={d && d.latePaymentCount > 0 ? t('dashboard.latePaymentsMixedCurrency') : undefined}
-            loading={stats.isLoading}
-            multilineValue
-          />
-          <MetricCard
-            label={t('dashboard.yearProjection')}
-            hint={
-              d?.yearEndProjectionHt != null ? t('dashboard.yearProjectionHint') : t('dashboard.yearProjectionNone')
-            }
-            value={d?.yearEndProjectionHt != null ? fmt.moneyHt(d.yearEndProjectionHt) : '—'}
-            loading={stats.isLoading}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('dashboard.sectionSummary')}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <MetricCard
-            label={t('dashboard.timesheets')}
-            value={d ? String(d.timesheetsInPeriod) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.invoices')}
-            value={d ? String(d.invoicesCountInPeriod) : undefined}
-            loading={stats.isLoading}
-          />
-          <MetricCard
-            label={t('dashboard.gapToInvoice')}
-            hint={t('dashboard.gapToInvoiceHint')}
-            value={d ? fmt.moneyHt(d.gapToInvoiceHt) : undefined}
-            loading={stats.isLoading}
-          />
-        </div>
-        <Card className="border-primary/25 bg-gradient-to-br from-primary/5 to-card">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <CardDescription>{t('dashboard.topClient')}</CardDescription>
+                  ) : (
+                    t('dashboard.latePaymentsNone')
+                  )}
+                </CardTitle>
               </div>
-              <CardTitle className="text-xl font-semibold leading-tight">
-                {stats.isLoading ? (
-                  <Skeleton className="h-7 w-40" />
-                ) : d && d.topClientRevenueHt > 0 ? (
-                  <>
-                    <span className="block truncate">
-                      {d.topClientUnassigned ? t('dashboard.topClientUnassigned') : (d.topClientName ?? '—')}
-                    </span>
-                    <span className="mt-1 block text-base font-medium tabular-nums text-primary">
-                      {fmt.moneyHt(d.topClientRevenueHt)} HT
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-base font-normal text-muted-foreground">{t('dashboard.topClientNone')}</span>
-                )}
-              </CardTitle>
+              {hasLate ? <AlertTriangle className="mt-1 h-5 w-5 shrink-0 text-destructive" aria-hidden /> : null}
             </CardHeader>
+            <CardContent>
+              {d && d.latePaymentCount > 0 ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">{t('dashboard.latePaymentsMixedCurrency')}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t('dashboard.latePaymentsHint')}</p>
+              )}
+            </CardContent>
           </Card>
+        </div>
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            {t('dashboard.sectionLists')}
-          </h2>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">{t('dashboard.sectionLists')}</h2>
           <p className="text-xs text-muted-foreground">
             {t('dashboard.listCounts', { ts: filteredTimesheets.length, inv: filteredInvoices.length })}
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="overflow-hidden border-border/80">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="overflow-hidden border-border/70 shadow-sm">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
               <div>
                 <CardTitle className="text-base font-semibold">{t('dashboard.timesheets')}</CardTitle>
-                <CardDescription>{t('dashboard.emptyTimesheets')}</CardDescription>
+                <CardDescription className="mt-1">{t('dashboard.timesheetsListHint')}</CardDescription>
               </div>
-              <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+              <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             </CardHeader>
             <CardContent className="space-y-2">
               {timesheets.isLoading ? (
@@ -297,10 +343,10 @@ export default function DashboardPage() {
                   <Link
                     key={ts.id}
                     to={`/timesheets/${ts.id}/edit`}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-sm transition-colors hover:bg-muted/60"
+                    className="group flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-3 text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/40"
                   >
                     <div className="min-w-0 flex-1 space-y-2">
-                      <p className="truncate font-medium">{ts.title}</p>
+                      <p className="truncate font-medium leading-snug">{ts.title}</p>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <p className="text-xs text-muted-foreground">
                           {[ts.month_year, new Date(ts.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
@@ -319,7 +365,13 @@ export default function DashboardPage() {
                         })()}
                       </div>
                     </div>
-                    <Badge variant={ts.status === 'validated' ? 'success' : 'secondary'}>{ts.status}</Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant={ts.status === 'validated' ? 'success' : 'secondary'}>{ts.status}</Badge>
+                      <ArrowUpRight
+                        className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    </div>
                   </Link>
                 ))
               ) : (
@@ -333,13 +385,13 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-border/80">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="overflow-hidden border-border/70 shadow-sm">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
               <div>
                 <CardTitle className="text-base font-semibold">{t('dashboard.invoices')}</CardTitle>
-                <CardDescription>{t('dashboard.emptyInvoices')}</CardDescription>
+                <CardDescription className="mt-1">{t('dashboard.invoicesListHint')}</CardDescription>
               </div>
-              <Receipt className="h-5 w-5 text-muted-foreground" />
+              <Receipt className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             </CardHeader>
             <CardContent className="space-y-2">
               {invoices.isLoading ? (
@@ -349,7 +401,7 @@ export default function DashboardPage() {
                   <Link
                     key={inv.id}
                     to={`/invoices/${inv.id}`}
-                    className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-sm transition-colors hover:bg-muted/60"
+                    className="group flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-3 text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/40"
                   >
                     <div className="min-w-0">
                       <p className="truncate font-medium">{inv.invoice_number}</p>
@@ -357,12 +409,18 @@ export default function DashboardPage() {
                         {inv.issue_date} · {clientNameById.get(inv.client_id) ?? '—'}
                       </p>
                     </div>
-                    <span className="shrink-0 pl-2 font-medium tabular-nums">
-                      {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
-                        style: 'currency',
-                        currency: inv.currency,
-                      }).format(inv.total_ttc)}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-medium tabular-nums">
+                        {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
+                          style: 'currency',
+                          currency: inv.currency,
+                        }).format(inv.total_ttc)}
+                      </span>
+                      <ArrowUpRight
+                        className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    </div>
                   </Link>
                 ))
               ) : (
@@ -381,36 +439,26 @@ export default function DashboardPage() {
   )
 }
 
-function MetricCard({
+function StatLine({
   label,
   value,
-  sub,
-  hint,
+  detail,
   loading,
-  multilineValue,
 }: {
   label: string
   value: string | undefined
-  sub?: string
-  hint?: string
+  detail?: string
   loading: boolean
-  multilineValue?: boolean
 }) {
   return (
-    <Card className={cn('border-border/80 bg-gradient-to-br from-card to-muted/30')}>
-      <CardHeader className="space-y-1 pb-2">
-        <CardDescription>{label}</CardDescription>
-        {hint ? <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p> : null}
-        <CardTitle
-          className={cn(
-            'text-xl font-semibold tabular-nums sm:text-2xl',
-            multilineValue && value && 'whitespace-pre-wrap text-base font-medium leading-snug sm:text-lg',
-          )}
-        >
-          {loading ? <Skeleton className="h-8 w-28" /> : (value ?? '—')}
-        </CardTitle>
-        {sub && !loading ? <CardDescription className="pt-0.5 text-xs">{sub}</CardDescription> : null}
-      </CardHeader>
-    </Card>
+    <div className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+      <div className="min-w-0 pt-0.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        {detail ? <p className="mt-1 text-[11px] leading-snug text-muted-foreground/90">{detail}</p> : null}
+      </div>
+      <div className="shrink-0 text-right">
+        {loading ? <Skeleton className="ml-auto h-8 w-28" /> : <p className="text-xl font-semibold tabular-nums sm:text-2xl">{value ?? '—'}</p>}
+      </div>
+    </div>
   )
 }
