@@ -10,7 +10,6 @@
     "format": "prettier --write .",
     "preview": "vite preview",
     "seed:clear": "tsx scripts/seed-clear-all.ts",
-    "seed:demo": "tsx scripts/seed-demo-email.ts",
     "seed:bulk": "tsx scripts/seed-bulk-demo.ts"
   },
   "dependencies": {

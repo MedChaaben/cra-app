@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router-dom'
@@ -9,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/hooks/useAuth'
+import { getDemoLoginCredentials, isDemoLoginConfigured } from '@/lib/demoLogin'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 
 const schema = z.object({
@@ -23,6 +26,8 @@ export default function LoginPage() {
   const { t } = useTranslation()
   const { user, loading, signIn } = useAuth()
   const form = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const [demoLoading, setDemoLoading] = useState(false)
+  const showDemoCta = isSupabaseConfigured && isDemoLoginConfigured()
 
   if (!loading && user) {
     return <Navigate to="/" replace />
@@ -34,8 +39,24 @@ export default function LoginPage() {
       toast.error(error)
       return
     }
-    toast.success('Bienvenue')
+    toast.success(t('auth.welcome'))
   })
+
+  const onDemo = async () => {
+    const creds = getDemoLoginCredentials()
+    if (!creds) return
+    setDemoLoading(true)
+    try {
+      const { error } = await signIn(creds.email, creds.password)
+      if (error) {
+        toast.error(error)
+        return
+      }
+      toast.success(t('auth.welcomeDemo'))
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 px-4 py-12">
@@ -80,6 +101,27 @@ export default function LoginPage() {
               {t('auth.login')}
             </Button>
           </form>
+          {showDemoCta ? (
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+                  {t('auth.demoDivider')}
+                </span>
+                <Separator className="flex-1" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={demoLoading}
+                onClick={() => void onDemo()}
+              >
+                {demoLoading ? t('auth.demoLoading') : t('auth.demoExplore')}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">{t('auth.demoHint')}</p>
+            </div>
+          ) : null}
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Pas encore de compte ?{' '}
             <Link to="/signup" className="font-medium text-primary hover:underline">

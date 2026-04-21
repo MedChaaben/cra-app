@@ -22,6 +22,13 @@ const resources = {
         email: 'Email',
         password: 'Mot de passe',
         logout: 'Déconnexion',
+        welcome: 'Bienvenue',
+        welcomeDemo: 'Bienvenue sur l’espace démo',
+        demoDivider: 'ou',
+        demoExplore: 'Parcourir la démo',
+        demoHint:
+          'Espace fictif avec données d’exemple. Les identifiants sont publics : prévoyez un compte Supabase dédié.',
+        demoLoading: 'Connexion…',
       },
       dashboard: {
         title: 'Pilotage',
@@ -462,6 +469,13 @@ const resources = {
         email: 'Email',
         password: 'Password',
         logout: 'Log out',
+        welcome: 'Welcome',
+        welcomeDemo: 'Welcome to the demo workspace',
+        demoDivider: 'or',
+        demoExplore: 'Try the demo',
+        demoHint:
+          'Sample data in a throwaway account. Credentials ship in the public JS — use a dedicated Supabase project.',
+        demoLoading: 'Signing in…',
       },
       dashboard: {
         title: 'Steering',

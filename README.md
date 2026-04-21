@@ -51,14 +51,25 @@ npm run format
 - Output : `dist`
 - Variables d’environnement : les mêmes que dans `.env` (préfixe `VITE_` obligatoire pour Vite).
 
+## Compte démo (visiteurs)
+
+Pour afficher sur `/login` un bouton **Parcourir la démo** :
+
+1. Créez dans Supabase Auth un utilisateur dédié (inscription dans l’app ou tableau Auth), par ex. `demo@votredomaine.test`.
+2. Renseignez dans `.env` (et sur l’hébergeur) `VITE_DEMO_LOGIN_EMAIL` et `VITE_DEMO_LOGIN_PASSWORD` avec les mêmes valeurs.  
+   Ces variables sont **publiques** dans le bundle : réservez un compte jetable et, idéalement, un projet Supabase séparé.
+3. Injectez le jeu de données démo volumineux pour cet email :  
+   `SEED_DEMO_EMAIL=demo@votredomaine.test pnpm seed:bulk`  
+   (nécessite `SUPABASE_SERVICE_ROLE_KEY` en local, voir `.env.example`.)
+
 ## Parcours produit
 
-1. Inscription / connexion (Supabase Auth)
+1. Inscription / connexion (Supabase Auth), ou accès démo si configuré
 2. **Tableau de bord** : feuilles récentes, factures, heures et CA du mois (à partir des lignes datées)
 3. **Nouvelle feuille** : choix du mois, valeurs par défaut (mission, client, TJM) ; génération d’une ligne par jour puis édition au calendrier
 4. **Éditeur** : tableau éditable, autosave (~900 ms), export CSV, lien vers facturation
 5. **Factures** : liste ; création avec client, TVA, PDF stocké dans le bucket `invoices-pdf`
-6. **Réglages** : profil société (facture PDF) ; bouton **données démo** (clients + feuille exemple)
+6. **Réglages** : profil société (facture PDF)
 
 ## Architecture (dossiers)
 
@@ -68,7 +79,7 @@ npm run format
 | `src/components/` | UI réutilisable (style type shadcn) + layout |
 | `src/pages/` | Écrans routés (lazy-loaded) |
 | `src/hooks/` | Auth, requêtes métier |
-| `src/services/` | PDF, seed démo, logique métier |
+| `src/services/` | PDF, seed bulk (scripts), logique métier |
 | `src/lib/` | Supabase client, utilitaires, CSV |
 | `src/types/` | Modèles TypeScript |
 | `src/store/` | Zustand (UI légère) |
