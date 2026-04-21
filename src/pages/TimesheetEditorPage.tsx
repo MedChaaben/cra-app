@@ -1,13 +1,21 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Plus, Trash2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Download, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,9 +31,11 @@ type Row = TimesheetEntry
 
 export default function TimesheetEditorPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { t } = useTranslation()
   const { user } = useAuth()
   const qc = useQueryClient()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const timesheetQuery = useQuery({
     queryKey: ['timesheet', id],
@@ -141,6 +151,43 @@ export default function TimesheetEditorPage() {
     if (error) toast.error(error.message)
   }
 
+  const deleteTimesheet = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !id) throw new Error('missing context')
+      const { data: rowsToDelete, error: rowsErr } = await supabase
+        .from('timesheet_entries')
+        .select('id')
+        .eq('timesheet_id', id)
+      if (rowsErr) throw rowsErr
+
+      const rowIds = (rowsToDelete ?? []).map((r) => r.id)
+      if (rowIds.length) {
+        const { error: unlinkErr } = await supabase
+          .from('invoice_items')
+          .update({ timesheet_entry_id: null })
+          .in('timesheet_entry_id', rowIds)
+        if (unlinkErr) throw unlinkErr
+      }
+
+      const { error: entriesErr } = await supabase.from('timesheet_entries').delete().eq('timesheet_id', id)
+      if (entriesErr) throw entriesErr
+
+      const { error: timesheetErr } = await supabase.from('timesheets').delete().eq('id', id).eq('user_id', user.id)
+      if (timesheetErr) throw timesheetErr
+    },
+    onSuccess: async () => {
+      setDeleteDialogOpen(false)
+      await qc.invalidateQueries({ queryKey: ['timesheets'] })
+      await qc.invalidateQueries({ queryKey: ['timesheets-with-entries', user?.id] })
+      await qc.invalidateQueries({ queryKey: ['dashboard-stats', user?.id] })
+      toast.success(t('editor.deleted'))
+      void navigate('/timesheets', { replace: true })
+    },
+    onError: () => {
+      toast.error(t('editor.deleteError'))
+    },
+  })
+
   if (timesheetQuery.isLoading || entriesQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -173,6 +220,9 @@ export default function TimesheetEditorPage() {
           </Button>
           <Button asChild>
             <Link to={`/invoices/new?timesheetId=${id}`}>{t('editor.invoice')}</Link>
+          </Button>
+          <Button type="button" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+            {t('editor.deleteTimesheet')}
           </Button>
         </div>
       </div>
@@ -291,6 +341,24 @@ export default function TimesheetEditorPage() {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('editor.deleteDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('editor.deleteDialogDesc', { title: timesheetQuery.data?.title ?? '' })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              {t('editor.cancel')}
+            </Button>
+            <Button type="button" variant="destructive" disabled={deleteTimesheet.isPending} onClick={() => void deleteTimesheet.mutateAsync()}>
+              {deleteTimesheet.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t('editor.confirmDelete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
