@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
+import { CraOuvreSummary } from '@/components/cra/CraOuvreSummary'
 import { ReportingFiltersCard } from '@/components/reporting/ReportingFiltersCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,12 +16,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useClients } from '@/hooks/useClients'
 import { useDebounced } from '@/hooks/useDebounced'
 import { useListReportingUrl } from '@/hooks/useListReportingUrl'
+import { resolveCraStatsMonth } from '@/lib/craOuvreStats'
 import { resolveReportingRange, timesheetMatchesReportingRange } from '@/lib/reportingPeriod'
 import { supabase } from '@/lib/supabase/client'
 import type { Timesheet, TimesheetStatus } from '@/types/models'
 
 type TimesheetRow = Timesheet & {
-  timesheet_entries: { work_date: string | null; client_id: string | null }[] | null
+  timesheet_entries: { work_date: string | null; client_id: string | null; hours: number }[] | null
 }
 
 function statusBadgeVariant(s: TimesheetStatus): 'default' | 'secondary' | 'outline' | 'success' {
@@ -66,7 +68,7 @@ export default function TimesheetsPage() {
     queryFn: async (): Promise<TimesheetRow[]> => {
       const { data, error } = await supabase
         .from('timesheets')
-        .select('*, timesheet_entries(work_date, client_id)')
+        .select('*, timesheet_entries(work_date, client_id, hours)')
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -181,12 +183,25 @@ export default function TimesheetsPage() {
                       to={`/timesheets/${ts.id}/edit`}
                       className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 space-y-2">
                         <p className="font-medium leading-snug">{ts.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(ts.created_at).toLocaleDateString()} · {(ts.timesheet_entries ?? []).length}{' '}
-                          {t('timesheets.lines')}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(ts.created_at).toLocaleDateString()} · {(ts.timesheet_entries ?? []).length}{' '}
+                            {t('timesheets.lines')}
+                          </p>
+                          {(() => {
+                            const ym = resolveCraStatsMonth(ts.month_year, ts.timesheet_entries ?? [])
+                            return ym ? (
+                              <CraOuvreSummary
+                                variant="compact"
+                                year={ym.y}
+                                month={ym.m}
+                                entries={ts.timesheet_entries ?? []}
+                              />
+                            ) : null
+                          })()}
+                        </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2 sm:justify-end">
                         <Badge variant={statusBadgeVariant(ts.status)}>{t(`timesheets.status.${ts.status}`)}</Badge>

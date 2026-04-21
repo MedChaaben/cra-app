@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
+import { CraOuvreSummary } from '@/components/cra/CraOuvreSummary'
 import { ReportingFiltersCard } from '@/components/reporting/ReportingFiltersCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,7 @@ import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useDebounced } from '@/hooks/useDebounced'
 import { useListReportingUrl } from '@/hooks/useListReportingUrl'
 import { useTimesheets } from '@/hooks/useTimesheets'
+import { resolveCraStatsMonth } from '@/lib/craOuvreStats'
 import { dateInRange, resolveReportingRange, type ClosedDateRange } from '@/lib/reportingPeriod'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase/client'
@@ -295,13 +297,27 @@ export default function DashboardPage() {
                   <Link
                     key={ts.id}
                     to={`/timesheets/${ts.id}/edit`}
-                    className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-sm transition-colors hover:bg-muted/60"
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-sm transition-colors hover:bg-muted/60"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 space-y-2">
                       <p className="truncate font-medium">{ts.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {[ts.month_year, new Date(ts.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {[ts.month_year, new Date(ts.created_at).toLocaleDateString()].filter(Boolean).join(' · ')}
+                        </p>
+                        {(() => {
+                          const ym = resolveCraStatsMonth(ts.month_year, ts.timesheet_entries ?? [])
+                          return ym ? (
+                            <CraOuvreSummary
+                              variant="inline"
+                              year={ym.y}
+                              month={ym.m}
+                              entries={ts.timesheet_entries ?? []}
+                              className="w-full min-w-0 sm:max-w-[20rem]"
+                            />
+                          ) : null
+                        })()}
+                      </div>
                     </div>
                     <Badge variant={ts.status === 'validated' ? 'success' : 'secondary'}>{ts.status}</Badge>
                   </Link>

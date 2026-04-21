@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { eachDayOfInterval, endOfMonth, format, getISODay, startOfMonth } from 'date-fns'
 import { enUS, fr } from 'date-fns/locale'
 
+import { CraOuvreSummary } from '@/components/cra/CraOuvreSummary'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -254,6 +255,13 @@ export function ManualMonthForm({ onBack }: Props) {
               />
               <StatPill label={t('import.statWeekend')} value={stats.weekendDays} />
               <StatPill label={t('import.statHolidayWeek')} value={stats.weekdayHolidays} />
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-gradient-to-r from-sky-50/60 to-transparent px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:from-sky-950/25">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('import.craOuvrePreviewCaption')}
+              </p>
+              <CraOuvreSummary variant="compact" year={year} month={month} entries={[]} />
             </div>
 
             <div className="space-y-2">

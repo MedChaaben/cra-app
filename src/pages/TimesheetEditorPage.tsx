@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { CraOuvreSummary } from '@/components/cra/CraOuvreSummary'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -628,28 +629,31 @@ export default function TimesheetEditorPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-y border-border/60 py-3">
-            <div className="flex items-center gap-1">
-              <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goPrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[10rem] px-2 text-center text-sm font-semibold capitalize tabular-nums">
-                {monthLabel}
-              </span>
-              <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          <div className="space-y-3 border-y border-border/60 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goPrevMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[10rem] px-2 text-center text-sm font-semibold capitalize tabular-nums">
+                  {monthLabel}
+                </span>
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={goNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="secondary">{t('editor.autosave')}</Badge>
+                <span className="font-medium tabular-nums text-muted-foreground">
+                  {t('editor.totalHt')}{' '}
+                  {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
+                    style: 'currency',
+                    currency: 'EUR',
+                  }).format(totals.ht)}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Badge variant="secondary">{t('editor.autosave')}</Badge>
-              <span className="font-medium tabular-nums text-muted-foreground">
-                {t('editor.totalHt')}{' '}
-                {new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'fr-FR', {
-                  style: 'currency',
-                  currency: 'EUR',
-                }).format(totals.ht)}
-              </span>
-            </div>
+            <CraOuvreSummary variant="panel" year={viewMonth.y} month={viewMonth.m} entries={rows} />
           </div>
 
           <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[11px] text-muted-foreground">
