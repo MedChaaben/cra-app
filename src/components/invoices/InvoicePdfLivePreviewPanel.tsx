@@ -105,7 +105,7 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.07]',
+        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.07]',
         className,
       )}
     >
@@ -131,18 +131,18 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
         </Button>
       </div>
 
-      <div className="relative min-h-0 flex-1 bg-gradient-to-b from-muted/35 via-muted/20 to-muted/30">
+      <div className="relative flex min-h-0 flex-1 flex-col bg-gradient-to-b from-muted/35 via-muted/20 to-muted/30">
         {!input ? (
-          <div className="flex h-full min-h-[14rem] flex-col items-center justify-center gap-2 px-6 py-12 text-center lg:min-h-0">
+          <div className="flex min-h-[14rem] flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center lg:min-h-0">
             <p className="max-w-[240px] text-sm text-muted-foreground">{t('invoices.invoiceForm.livePdfEmpty')}</p>
           </div>
         ) : error ? (
-          <div className="flex h-full min-h-[14rem] flex-col items-center justify-center gap-2 px-6 py-12 text-center lg:min-h-0">
+          <div className="flex min-h-[14rem] flex-1 flex-col items-center justify-center gap-2 px-6 py-12 text-center lg:min-h-0">
             <p className="text-sm text-destructive">{t('invoices.invoiceForm.livePdfError')}</p>
             <p className="max-w-sm text-xs text-muted-foreground">{error}</p>
           </div>
         ) : (
-          <div className="relative h-full min-h-[18rem] lg:min-h-0">
+          <div className="absolute inset-0 min-h-0 overflow-hidden">
             {loading && !blobUrl ? (
               <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-[1px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -153,11 +153,11 @@ export function InvoicePdfLivePreviewPanel({ input, downloadBaseName, className 
               <iframe
                 title={t('invoices.invoiceForm.livePdfTitle')}
                 src={`${blobUrl}#toolbar=0&navpanes=0`}
-                className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-zinc-950"
+                className="absolute inset-0 box-border size-full border-0 bg-white dark:bg-zinc-950"
               />
             ) : (
               !loading && (
-                <div className="flex h-full min-h-[14rem] items-center justify-center px-6 lg:min-h-0">
+                <div className="absolute inset-0 flex min-h-[14rem] items-center justify-center px-6 lg:min-h-0">
                   <p className="text-sm text-muted-foreground">{t('invoices.invoiceForm.livePdfLoading')}</p>
                 </div>
               )

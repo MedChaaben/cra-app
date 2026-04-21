@@ -536,8 +536,8 @@ export default function InvoiceEditPage() {
 
   if (waitingForData) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center space-y-4 px-1">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col justify-center space-y-4 px-1">
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-64 w-full" />
         </div>
@@ -548,7 +548,7 @@ export default function InvoiceEditPage() {
   const inv = invoiceQuery.data as Invoice
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden">
+    <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-border/70 bg-background/95 pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
@@ -835,14 +835,16 @@ export default function InvoiceEditPage() {
             className={cn(
               'flex min-h-0 w-full min-w-0 flex-col overflow-hidden lg:h-full',
               mobileTab === 'edit' && 'max-lg:hidden',
-              mobileTab === 'preview' && 'max-lg:flex-1',
+              mobileTab === 'preview' && 'max-lg:h-0 max-lg:min-h-0 max-lg:flex-1',
             )}
           >
-            <InvoicePdfLivePreviewPanel
-              className="min-h-0 flex-1 shadow-lg max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:shadow-none lg:rounded-xl"
-              input={livePreviewInput}
-              downloadBaseName={inv.invoice_number}
-            />
+            <div className="flex min-h-0 w-full flex-1 flex-col">
+              <InvoicePdfLivePreviewPanel
+                className="min-h-0 flex-1 shadow-lg max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:shadow-none lg:rounded-xl"
+                input={livePreviewInput}
+                downloadBaseName={inv.invoice_number}
+              />
+            </div>
           </aside>
         </div>
       </div>

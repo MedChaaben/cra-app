@@ -352,7 +352,7 @@ export default function InvoiceNewPage() {
 
   if (clients.isLoading || profile.isLoading || settings.isLoading) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col items-start justify-center overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col items-start justify-center overflow-hidden">
         <p className="text-sm text-muted-foreground">Chargement…</p>
       </div>
     )
@@ -360,7 +360,7 @@ export default function InvoiceNewPage() {
 
   if (!clients.data?.length) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
         <Card className="max-w-lg border-amber-500/40 bg-amber-500/5">
         <CardHeader>
           <CardTitle>{t('invoices.clientRequiredTitle')}</CardTitle>
@@ -385,7 +385,7 @@ export default function InvoiceNewPage() {
   const previewFileName = settings.data ? formatInvoiceNumberFromSettings(settings.data as Settings) : 'facture'
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden">
+    <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-border/70 bg-background/95 pb-4">
         <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 h-8 px-2 text-muted-foreground hover:text-foreground">
           <Link to="/invoices">
@@ -693,14 +693,16 @@ export default function InvoiceNewPage() {
             className={cn(
               'flex min-h-0 w-full min-w-0 flex-col overflow-hidden lg:h-full',
               mobileTab === 'edit' && 'max-lg:hidden',
-              mobileTab === 'preview' && 'max-lg:flex-1',
+              mobileTab === 'preview' && 'max-lg:h-0 max-lg:min-h-0 max-lg:flex-1',
             )}
           >
-            <InvoicePdfLivePreviewPanel
-              className="min-h-0 flex-1 shadow-lg max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:shadow-none lg:rounded-xl"
-              input={livePreviewInput}
-              downloadBaseName={previewFileName}
-            />
+            <div className="flex min-h-0 w-full flex-1 flex-col">
+              <InvoicePdfLivePreviewPanel
+                className="min-h-0 flex-1 shadow-lg max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0 max-lg:shadow-none lg:rounded-xl"
+                input={livePreviewInput}
+                downloadBaseName={previewFileName}
+              />
+            </div>
           </aside>
         </div>
       </div>
