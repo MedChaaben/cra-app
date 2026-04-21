@@ -32,7 +32,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useClients } from '@/hooks/useClients'
 import { downloadTimesheetCsv } from '@/lib/csv'
 import { getFrenchMetropolitanHolidayLabel } from '@/lib/frenchPublicHolidays'
-import { getDayRowKind } from '@/lib/manualMonthRows'
+import { getDayRowKind, type DayRowKind } from '@/lib/manualMonthRows'
 import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { TimesheetEntry } from '@/types/models'
@@ -57,7 +57,9 @@ function nextWorkdayBand(h: WorkdayBand): WorkdayBand {
   return 0
 }
 
-function DayWorkCheckbox({ band, variant }: { band: WorkdayBand; variant: 'onGreen' | 'onGradient' | 'onMuted' }) {
+type CraCheckVariant = 'skySolid' | 'skySoft' | 'indigoSolid' | 'indigoSoft' | 'amber' | 'slateMuted' | 'zincMuted'
+
+function DayWorkCheckbox({ band, variant }: { band: WorkdayBand; variant: CraCheckVariant }) {
   const ref = useRef<HTMLInputElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
@@ -75,14 +77,111 @@ function DayWorkCheckbox({ band, variant }: { band: WorkdayBand; variant: 'onGre
       aria-hidden
       className={cn(
         'pointer-events-none size-[1.05rem] shrink-0 rounded border-2 transition-colors',
-        variant === 'onGreen' &&
-          'border-emerald-500/40 bg-white/90 accent-emerald-600 shadow-sm dark:border-emerald-400/35 dark:bg-emerald-950/40 dark:accent-emerald-400',
-        variant === 'onGradient' &&
-          'border-emerald-400/35 bg-white/75 accent-emerald-600 dark:border-emerald-500/30 dark:bg-white/15 dark:accent-emerald-400',
-        variant === 'onMuted' && 'border-muted-foreground/45 bg-background/80 accent-muted-foreground',
+        variant === 'skySolid' &&
+          'border-sky-400/50 bg-white/95 accent-sky-600 shadow-sm dark:border-sky-500/35 dark:bg-sky-950/50 dark:accent-sky-400',
+        variant === 'skySoft' &&
+          'border-sky-300/45 bg-white/85 accent-sky-500 dark:border-sky-600/30 dark:bg-white/10 dark:accent-sky-400',
+        variant === 'indigoSolid' &&
+          'border-indigo-400/45 bg-white/95 accent-indigo-600 shadow-sm dark:border-indigo-500/35 dark:bg-indigo-950/50 dark:accent-indigo-300',
+        variant === 'indigoSoft' &&
+          'border-indigo-300/40 bg-white/80 accent-indigo-500 dark:border-indigo-600/25 dark:bg-white/10 dark:accent-indigo-300',
+        variant === 'amber' &&
+          'border-amber-500/40 bg-white/90 accent-amber-600 shadow-sm dark:border-amber-400/35 dark:bg-amber-950/40 dark:accent-amber-400',
+        variant === 'slateMuted' &&
+          'border-slate-400/35 bg-white/70 accent-slate-500 dark:border-slate-500/40 dark:bg-slate-950/30 dark:accent-slate-400',
+        variant === 'zincMuted' &&
+          'border-zinc-300/50 bg-white/80 accent-zinc-500 dark:border-zinc-600/40 dark:bg-zinc-950/35 dark:accent-zinc-400',
       )}
     />
   )
+}
+
+/**
+ * Palette pro : ouvré = bleu ciel (activité), week-end = ardoise / indigo discret,
+ * férié = chaud (ambre), ½ jour = dégradé léger, repos = zinc neutre.
+ */
+function getCraCellTone(kind: DayRowKind, work: WorkdayBand) {
+  if (kind === 'holiday') {
+    if (work === 0) {
+      return {
+        card: 'border-amber-200/90 bg-amber-50/95 text-amber-950 shadow-[inset_0_1px_0_0_rgba(251,191,36,0.22)] dark:border-amber-700/45 dark:bg-amber-950/45 dark:text-amber-50',
+        dayNum: 'text-amber-950 dark:text-amber-50',
+        corner: 'text-amber-800 dark:text-amber-200',
+        fraction: 'text-amber-900/90 dark:text-amber-100/90',
+        check: 'amber' as const,
+      }
+    }
+    if (work === 0.5) {
+      return {
+        card: 'border-amber-300/65 bg-gradient-to-br from-amber-50 via-sky-50 to-white text-sky-950 shadow-sm ring-1 ring-amber-200/70 dark:from-amber-950/45 dark:via-sky-950/35 dark:to-background dark:text-sky-100 dark:ring-amber-700/35',
+        dayNum: 'text-sky-950 dark:text-sky-50',
+        corner: 'text-amber-800 dark:text-amber-200',
+        fraction: 'text-sky-900 dark:text-sky-100',
+        check: 'skySoft' as const,
+      }
+    }
+    return {
+      card: 'border-amber-400/50 bg-sky-100 text-sky-950 shadow-sm ring-2 ring-amber-300/55 ring-offset-1 ring-offset-background dark:border-amber-500/35 dark:bg-sky-950/50 dark:text-sky-50 dark:ring-amber-600/40',
+      dayNum: 'text-sky-950 dark:text-sky-50',
+      corner: 'text-amber-900 dark:text-amber-200',
+      fraction: 'text-sky-900 dark:text-sky-100',
+      check: 'skySolid' as const,
+    }
+  }
+
+  if (kind === 'weekend') {
+    if (work === 0) {
+      return {
+        card: 'border-slate-200/95 bg-slate-100/92 text-slate-500 shadow-[inset_0_1px_0_0_rgba(148,163,184,0.2)] dark:border-slate-700/55 dark:bg-slate-900/50 dark:text-slate-400',
+        dayNum: 'text-slate-600 dark:text-slate-300',
+        corner: 'text-slate-500 dark:text-slate-500',
+        fraction: 'text-slate-500 dark:text-slate-400',
+        check: 'slateMuted' as const,
+      }
+    }
+    if (work === 0.5) {
+      return {
+        card: 'border-slate-300/70 bg-gradient-to-br from-slate-100 via-indigo-50 to-white text-indigo-950 shadow-sm dark:from-slate-800/55 dark:via-indigo-950/35 dark:to-background dark:text-indigo-100',
+        dayNum: 'text-indigo-950 dark:text-indigo-50',
+        corner: 'text-slate-500 dark:text-slate-400',
+        fraction: 'text-indigo-900 dark:text-indigo-100',
+        check: 'indigoSoft' as const,
+      }
+    }
+    return {
+      card: 'border-indigo-200/85 bg-indigo-100/95 text-indigo-950 shadow-sm dark:border-indigo-600/40 dark:bg-indigo-950/50 dark:text-indigo-100',
+      dayNum: 'text-indigo-950 dark:text-indigo-50',
+      corner: 'text-indigo-700/80 dark:text-indigo-300/90',
+      fraction: 'text-indigo-900 dark:text-indigo-100',
+      check: 'indigoSolid' as const,
+    }
+  }
+
+  if (work === 0) {
+    return {
+      card: 'border-zinc-200/85 bg-zinc-50/98 text-zinc-500 shadow-[inset_0_1px_0_0_rgba(228,228,231,0.6)] dark:border-zinc-700/50 dark:bg-zinc-900/42 dark:text-zinc-400',
+      dayNum: 'text-zinc-600 dark:text-zinc-300',
+      corner: 'text-zinc-400 dark:text-zinc-500',
+      fraction: 'text-zinc-500 dark:text-zinc-400',
+      check: 'zincMuted' as const,
+    }
+  }
+  if (work === 0.5) {
+    return {
+      card: 'border-sky-200/80 bg-gradient-to-br from-sky-50 via-cyan-50/75 to-white text-sky-950 shadow-sm dark:from-sky-950/40 dark:via-cyan-950/25 dark:to-background dark:text-sky-100',
+      dayNum: 'text-sky-950 dark:text-sky-50',
+      corner: 'text-sky-600/70 dark:text-sky-400/80',
+      fraction: 'text-sky-900 dark:text-sky-100',
+      check: 'skySoft' as const,
+    }
+  }
+  return {
+    card: 'border-sky-300/55 bg-sky-100 text-sky-950 shadow-sm dark:border-sky-600/35 dark:bg-sky-950/48 dark:text-sky-50',
+    dayNum: 'text-sky-950 dark:text-sky-50',
+    corner: 'text-sky-700/75 dark:text-sky-300/85',
+    fraction: 'text-sky-900 dark:text-sky-100',
+    check: 'skySolid' as const,
+  }
 }
 
 function parseMonthYear(s: string | null | undefined): { y: number; m: number } | null {
@@ -553,20 +652,32 @@ export default function TimesheetEditorPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-3.5 w-7 rounded-sm bg-emerald-100 shadow-sm ring-1 ring-emerald-300/50 dark:bg-emerald-900/45 dark:ring-emerald-600/30" />
-              {t('editor.legendFull')}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-3.5 w-7 rounded-sm bg-gradient-to-br from-emerald-200/90 via-emerald-50 to-white shadow-sm ring-1 ring-emerald-200/60 dark:from-emerald-800/50 dark:via-emerald-950/40 dark:to-zinc-900 dark:ring-emerald-700/25" />
-              {t('editor.legendHalf')}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-3.5 w-7 rounded-sm bg-muted ring-1 ring-border" />
-              {t('editor.legendOff')}
-            </span>
-            <span className="text-[10px] text-muted-foreground/90">{t('editor.legendClick')}</span>
+          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-7 rounded-sm border border-sky-300/50 bg-sky-100 shadow-sm dark:border-sky-600/40 dark:bg-sky-950/50" />
+                {t('editor.legendFull')}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-7 rounded-sm border border-sky-200/70 bg-gradient-to-br from-sky-50 via-cyan-50/70 to-white shadow-sm dark:from-sky-950/40 dark:via-cyan-950/25 dark:to-zinc-900" />
+                {t('editor.legendHalf')}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-7 rounded-sm border border-zinc-200/90 bg-zinc-50 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900/45" />
+                {t('editor.legendWorkOff')}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 pt-2">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-7 rounded-sm border border-slate-200/95 bg-slate-100 shadow-sm dark:border-slate-700/55 dark:bg-slate-900/50" />
+                {t('editor.legendWeekend')}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-3.5 w-7 rounded-sm border border-amber-200/90 bg-amber-50 shadow-sm dark:border-amber-700/45 dark:bg-amber-950/45" />
+                {t('editor.legendHoliday')}
+              </span>
+              <span className="text-[10px] text-muted-foreground/90">{t('editor.legendClick')}</span>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-border/70 bg-muted/10 p-2">
@@ -589,8 +700,7 @@ export default function TimesheetEditorPage() {
                     const idx = rowIndexByDate.get(cell.iso)
                     const hoursVal = idx !== undefined ? rows[idx]!.hours : 0
                     const workState = snapToWorkdayBand(Number(hoursVal) || 0)
-                    const checkVariant =
-                      workState === 1 ? 'onGreen' : workState === 0.5 ? 'onGradient' : 'onMuted'
+                    const tone = getCraCellTone(kind, workState)
                     const ariaState =
                       workState === 1 ? t('editor.dayAriaFull') : workState === 0.5 ? t('editor.dayAriaHalf') : t('editor.dayAriaOff')
                     return (
@@ -607,56 +717,31 @@ export default function TimesheetEditorPage() {
                         }}
                         aria-label={t('editor.dayCycleAria', { day: cell.dayNum, month: monthLabel, state: ariaState })}
                         className={cn(
-                          'flex min-h-[3.75rem] flex-col items-center justify-between gap-0.5 rounded-md border p-1.5 text-left transition-[background,box-shadow,transform,border-color] duration-150 hover:brightness-[1.015] active:scale-[0.98]',
-                          workState === 1 &&
-                            'border-emerald-300/80 bg-emerald-50 text-emerald-950 shadow-sm ring-1 ring-emerald-200/50 dark:border-emerald-600/30 dark:bg-emerald-950/40 dark:text-emerald-50 dark:ring-emerald-700/20',
-                          workState === 0.5 &&
-                            'border-emerald-200/90 bg-gradient-to-br from-emerald-100/95 via-emerald-50/90 to-white text-emerald-950 shadow-sm ring-1 ring-emerald-100/80 dark:from-emerald-900/45 dark:via-emerald-950/35 dark:to-background dark:text-emerald-100 dark:ring-emerald-800/25',
-                          workState === 0 && 'border-border/70 bg-muted/75 text-muted-foreground',
-                          kind === 'holiday' && 'ring-2 ring-amber-400/50 ring-offset-1 ring-offset-background',
-                          kind === 'weekend' && workState === 0 && 'opacity-[0.92]',
+                          'flex min-h-[3.75rem] flex-col items-center justify-between gap-0.5 rounded-lg border p-1.5 text-left transition-[background,box-shadow,transform,border-color] duration-200 hover:brightness-[1.02] active:scale-[0.98]',
+                          tone.card,
                         )}
                       >
                         <div className="flex w-full items-start justify-between gap-0.5">
-                          <span
-                            className={cn(
-                              'text-[11px] font-semibold tabular-nums',
-                              workState === 1 && 'text-emerald-900 dark:text-emerald-100',
-                              workState === 0.5 && 'text-emerald-950 dark:text-emerald-50',
-                            )}
-                          >
-                            {cell.dayNum}
-                          </span>
+                          <span className={cn('text-[11px] font-semibold tabular-nums', tone.dayNum)}>{cell.dayNum}</span>
                           {kind === 'holiday' ? (
                             <span
                               className={cn(
-                                'max-w-[3.5rem] truncate text-[8px] font-medium leading-tight',
-                                workState === 1 ? 'text-amber-800 dark:text-amber-200' : 'text-amber-900 dark:text-amber-200',
+                                'max-w-[3.5rem] truncate text-[8px] font-semibold uppercase tracking-wide leading-tight',
+                                tone.corner,
                               )}
                             >
                               {t('editor.badgeHoliday')}
                             </span>
                           ) : kind === 'weekend' ? (
-                            <span
-                              className={cn(
-                                'text-[8px] font-medium',
-                                workState === 1 ? 'text-emerald-800/85 dark:text-emerald-200/90' : 'text-muted-foreground',
-                              )}
-                            >
+                            <span className={cn('text-[8px] font-semibold uppercase tracking-wide', tone.corner)}>
                               {t('editor.badgeWeekendShort')}
                             </span>
                           ) : (
                             <span className="w-4 shrink-0" aria-hidden />
                           )}
                         </div>
-                        <DayWorkCheckbox band={workState} variant={checkVariant} />
-                        <span
-                          className={cn(
-                            'w-full text-center text-[10px] font-semibold tabular-nums',
-                            workState === 1 && 'text-emerald-900 dark:text-emerald-100',
-                            workState === 0.5 && 'text-emerald-900 dark:text-emerald-100',
-                          )}
-                        >
+                        <DayWorkCheckbox band={workState} variant={tone.check} />
+                        <span className={cn('w-full text-center text-[10px] font-semibold tabular-nums', tone.fraction)}>
                           {workState === 1 ? '1' : workState === 0.5 ? '½' : '0'}
                         </span>
                       </button>
