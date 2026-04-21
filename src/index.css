@@ -45,6 +45,31 @@
   * {
     @apply border-border;
   }
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--color-border) 85%, transparent) transparent;
+  }
+  html.dark {
+    scrollbar-color: color-mix(in oklch, var(--color-border) 70%, transparent) transparent;
+  }
+  html::-webkit-scrollbar {
+    width: 9px;
+  }
+  html::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  html::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    background-color: color-mix(in oklch, var(--color-muted-foreground) 35%, transparent);
+  }
+  html.dark::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--color-muted-foreground) 45%, transparent);
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--color-muted-foreground) 52%, transparent);
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }

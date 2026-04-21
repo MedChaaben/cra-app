@@ -84,7 +84,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-svh flex-col overflow-x-hidden bg-background">
+      <div className="flex min-h-svh flex-col overflow-x-clip bg-background">
         <header className="sticky top-0 z-40 shrink-0 border-b border-border bg-card/80 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
             <Button
@@ -249,7 +249,7 @@ export function AppShell() {
             </div>
           ) : null}
         </header>
-        <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-4">
+        <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-4 py-4 sm:px-6 sm:py-4">
           <Outlet />
         </main>
       </div>
