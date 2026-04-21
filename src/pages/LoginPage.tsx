@@ -39,7 +39,6 @@ export default function LoginPage() {
       toast.error(error)
       return
     }
-    toast.success(t('auth.welcome'))
   })
 
   const onDemo = async () => {
@@ -52,7 +51,6 @@ export default function LoginPage() {
         toast.error(error)
         return
       }
-      toast.success(t('auth.welcomeDemo'))
     } finally {
       setDemoLoading(false)
     }

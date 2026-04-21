@@ -24,8 +24,6 @@ const resources = {
         email: 'Email',
         password: 'Mot de passe',
         logout: 'Déconnexion',
-        welcome: 'Bienvenue',
-        welcomeDemo: 'Bienvenue sur l’espace démo',
         demoDivider: 'ou',
         demoExplore: 'Parcourir la démo',
         demoHint:
@@ -473,8 +471,6 @@ const resources = {
         email: 'Email',
         password: 'Password',
         logout: 'Log out',
-        welcome: 'Welcome',
-        welcomeDemo: 'Welcome to the demo workspace',
         demoDivider: 'or',
         demoExplore: 'Try the demo',
         demoHint:
