@@ -85,6 +85,55 @@ function wrapDescription(text: string, maxChars: number, maxLines: number): stri
   return lines.slice(0, maxLines)
 }
 
+/** Césure selon la largeur réelle (Helvetica) — évite la troncature des mentions légales longues. */
+function wrapTextToWidth(text: string, font: PDFFont, size: number, maxWidth: number, maxLines: number): string[] {
+  const raw = sanitizePdfText(text).trim()
+  if (!raw) return []
+  const lines: string[] = []
+
+  const flush = (current: { s: string }) => {
+    if (current.s && lines.length < maxLines) lines.push(current.s)
+    current.s = ''
+  }
+
+  for (const para of raw.split(/\n/)) {
+    const words = para.split(/\s+/).filter(Boolean)
+    const current = { s: '' }
+    for (const w of words) {
+      if (lines.length >= maxLines) return lines
+      const trial = current.s ? `${current.s} ${w}` : w
+      if (font.widthOfTextAtSize(trial, size) <= maxWidth) {
+        current.s = trial
+        continue
+      }
+      flush(current)
+      if (lines.length >= maxLines) return lines
+      if (font.widthOfTextAtSize(w, size) <= maxWidth) {
+        current.s = w
+        continue
+      }
+      let rest = w
+      while (rest.length > 0 && lines.length < maxLines) {
+        let lo = 1
+        let hi = rest.length
+        let best = 1
+        while (lo <= hi) {
+          const mid = Math.floor((lo + hi) / 2)
+          const sub = rest.slice(0, mid)
+          if (font.widthOfTextAtSize(sub, size) <= maxWidth) {
+            best = mid
+            lo = mid + 1
+          } else hi = mid - 1
+        }
+        lines.push(rest.slice(0, best))
+        rest = rest.slice(best)
+      }
+    }
+    flush(current)
+  }
+  return lines
+}
+
 export type InvoiceDrawFonts = { font: PDFFont; fontBold: PDFFont; fontItalic: PDFFont }
 
 export function drawInvoicePage(args: {
@@ -222,24 +271,10 @@ export function drawInvoicePage(args: {
   }
 
   const vatZero = Number(input.invoice.vat_rate) === 0
-  const customVat = input.profile.vat_zero_note?.trim()
-  if (vatZero) {
-    metaNext -= 12
-    const note = customVat ? customVat : strings.autoliquidationVat
-    const noteLines = note.split('\n').slice(0, 3)
-    for (const nl of noteLines) {
-      page.drawText(sanitizePdfText(nl), {
-        x: xRight - 220,
-        y: metaNext,
-        size: 6.5,
-        font: fontItalic,
-        color: theme.footer,
-      })
-      metaNext -= 9
-    }
-  }
 
   y = Math.min(y, metaNext - 10)
+  const billToMarginTop = 14
+  y -= billToMarginTop
 
   drawText(`${strings.billTo} :`, xDesc, y, 10, { bold: true })
   y -= 16
@@ -360,6 +395,26 @@ export function drawInvoicePage(args: {
 
   const qrReserve = qrImage ? 118 : 0
   const textMaxW = width - M * 2 - qrReserve
+
+  const customVat = input.profile.vat_zero_note?.trim()
+  if (vatZero) {
+    y -= 4
+    const note = customVat ? customVat : strings.autoliquidationVat
+    const noteSize = 6.5
+    const noteLineGap = 8
+    const noteLines = wrapTextToWidth(note, fontItalic, noteSize, Math.max(120, textMaxW), 14)
+    for (const nl of noteLines) {
+      page.drawText(nl, {
+        x: xDesc,
+        y,
+        size: noteSize,
+        font: fontItalic,
+        color: theme.footer,
+      })
+      y -= noteLineGap
+    }
+    y -= 12
+  }
 
   const wrapFooter = (raw: string, size: number, lineH: number, startY: number): number => {
     let yy = startY
